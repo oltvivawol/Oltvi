@@ -13,7 +13,9 @@
 .externalNativeBuild
 .cxx
 local.properties
-**/google-services.json
+# google-services.json es seguro en Android — las reglas de seguridad
+# están server-side en Firebase Console, no en este archivo
+# **/google-services.json
 **/GoogleService-Info.plist
 keystore.jks
 *.keystore
