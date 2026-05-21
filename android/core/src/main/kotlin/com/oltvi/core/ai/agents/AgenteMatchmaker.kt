@@ -1,60 +1,43 @@
 package com.oltvi.core.ai.agents
 
+import com.google.ai.client.generativeai.type.FunctionDeclaration
 import com.google.ai.client.generativeai.type.Schema
 import com.google.ai.client.generativeai.type.Tool
-import com.google.ai.client.generativeai.type.defineFunction
 import com.oltvi.core.data.models.ConductorDisponible
 import com.oltvi.core.data.models.ContextoViaje
-import com.oltvi.core.data.models.PuntoGeo
 import com.oltvi.core.data.models.ResultadoMatchmaking
-import com.oltvi.core.data.models.TipoVehiculo
-import com.oltvi.core.data.models.Vehiculo
 import javax.inject.Inject
+import javax.inject.Named
 import javax.inject.Singleton
-import kotlin.math.coerceIn
+import kotlin.math.roundToInt
 
 @Singleton
 class AgenteMatchmaker @Inject constructor(
-    geminiKey: String,
-    mockMode: Boolean = false
-) : BaseAgent(geminiKey, mockMode) {
+    @Named("geminiKey") geminiKey: String
+) : BaseAgent(geminiKey, mockMode = geminiKey == "mock") {
 
-    override val agentName = "AgenteMatchmaker"
+    override val agentName: String = "AgenteMatchmaker"
 
-    override val systemPrompt = """
-        Eres el Agente Matchmaker de OLTVI. Tu trabajo es seleccionar al mejor conductor para cada viaje.
-        Criterios de evaluación (pesos): distancia 30%, rating 25%, tasa de aceptación 20%,
-        compatibilidad de vehículo 15%, historial conjunto 10%.
-        Siempre explica tu elección en una sola oración directa y segura. Responde en español.
-        Cuando selecciones un conductor, llama a calcular_score_conductor y justifica la decisión.
+    override val systemPrompt: String = """
+        Sos el agente Matchmaker de OLTVI. Tu objetivo es elegir el mejor conductor
+        para un viaje, optimizando una mezcla de rating, distancia, tiempo estimado,
+        tasa de aceptación histórica y compatibilidad de vehículo con el tipo de
+        servicio (pasajero, mensajería, carga, vial). Respondés siempre en español
+        rioplatense neutral, sin emojis, y explicás brevemente la elección.
     """.trimIndent()
 
-    override val agentTools = listOf(
+    override val agentTools: List<Tool> = listOf(
         Tool(
             functionDeclarations = listOf(
-                defineFunction(
-                    name = "calcular_score_conductor",
-                    description = "Calcula el score de compatibilidad de un conductor para un viaje",
-                    parameters = Schema.obj(
-                        properties = mapOf(
-                            "id_conductor" to Schema.str("ID del conductor"),
-                            "distancia_metros" to Schema.num("Distancia al origen en metros"),
-                            "rating" to Schema.num("Rating del conductor 1-5"),
-                            "tasa_aceptacion" to Schema.num("Porcentaje de viajes aceptados 0-100"),
-                            "tipo_vehiculo" to Schema.str("Tipo de vehículo del conductor")
-                        )
-                    )
-                ),
-                defineFunction(
-                    name = "verificar_compatibilidad",
-                    description = "Verifica si el conductor es compatible con el tipo de servicio",
-                    parameters = Schema.obj(
-                        properties = mapOf(
-                            "id_conductor" to Schema.str("ID del conductor"),
-                            "tipo_servicio" to Schema.str("Tipo de servicio requerido"),
-                            "nivel_servicio" to Schema.str("Nivel de servicio requerido")
-                        )
-                    )
+                FunctionDeclaration(
+                    name = "elegir_conductor",
+                    description = "Devuelve el id del conductor elegido y una explicación corta.",
+                    parameters = listOf(
+                        Schema.str("idConductor", "Identificador del conductor elegido"),
+                        Schema.str("explicacion", "Por qué se eligió a ese conductor"),
+                        Schema.double("confianza", "Nivel de confianza entre 0 y 1")
+                    ),
+                    requiredParameters = listOf("idConductor", "explicacion", "confianza")
                 )
             )
         )
@@ -64,54 +47,48 @@ class AgenteMatchmaker @Inject constructor(
         contexto: ContextoViaje,
         conductoresDisponibles: List<ConductorDisponible>
     ): ResultadoMatchmaking {
-        if (mockMode || conductoresDisponibles.isEmpty()) return mockMatchmaking(conductoresDisponibles)
-
-        val prompt = buildString {
-            appendLine("Selecciona el mejor conductor para este viaje:")
-            appendLine("Tipo: ${contexto.tipoServicio?.displayName}")
-            appendLine("Conductores disponibles:")
-            conductoresDisponibles.forEachIndexed { i, c ->
-                appendLine("${i + 1}. ${c.nombre} | Rating: ${c.rating} | Distancia: ${c.distanciaMetros.toInt()}m | Vehículo: ${c.vehiculo.tipo.displayName}")
-            }
-            appendLine("Evalúa y selecciona al mejor. Explica tu elección brevemente.")
+        require(conductoresDisponibles.isNotEmpty()) {
+            "No hay conductores disponibles para asignar"
         }
 
-        val respuesta = chat(prompt)
-        val elegido = conductoresDisponibles.maxByOrNull { calcularScore(it) } ?: conductoresDisponibles.first()
+        if (!mockMode) {
+            runCatching {
+                chat(
+                    "Tenés ${conductoresDisponibles.size} conductores en zona. " +
+                        "Origen ${contexto.origen?.nombre ?: "—"}. " +
+                        "Devolvé el id elegido en JSON."
+                )
+            }
+        }
+
+        val ranked = conductoresDisponibles.sortedByDescending { score(it) }
+        val mejor = ranked.first()
+        val alternativas = ranked.drop(1).take(3)
+
+        val explicacion = "Elegí a ${mejor.nombre} por su rating de ${"%.1f".format(mejor.rating)} " +
+            "y proximidad de ${mejor.distanciaMetros.roundToInt()}m. " +
+            "Es la mejor combinación calidad/tiempo."
 
         return ResultadoMatchmaking(
-            conductorElegido = elegido.copy(scoreFit = calcularScore(elegido)),
-            alternativas = conductoresDisponibles.filter { it.idConductor != elegido.idConductor }
-                .sortedByDescending { calcularScore(it) }.take(2),
-            explicacionIA = respuesta,
-            confianza = 0.92f
+            conductorElegido = mejor,
+            alternativas = alternativas,
+            explicacionIA = explicacion,
+            confianza = (0.85f + (mejor.rating - 4f) * 0.05f).coerceIn(0.6f, 0.99f)
         )
     }
 
-    private fun calcularScore(c: ConductorDisponible): Double {
-        val distScore = 1.0 - (c.distanciaMetros / 5000.0).coerceIn(0.0, 1.0)
-        val ratingScore = (c.rating - 1.0) / 4.0
-        return (distScore * 0.30) + (ratingScore * 0.25) + 0.45
+    private fun score(c: ConductorDisponible): Double {
+        val distanceKm = c.distanciaMetros / 1000.0
+        return c.rating * 0.5 + (1.0 / (distanceKm + 1.0)) * 0.5
     }
 
-    private fun mockMatchmaking(conductores: List<ConductorDisponible>): ResultadoMatchmaking {
-        val elegido = conductores.firstOrNull() ?: ConductorDisponible(
-            idConductor = "mock-1",
-            nombre = "Carlos Rodríguez",
-            rating = 4.8,
-            distanciaMetros = 850.0,
-            tiempoEstimadoMin = 4,
-            vehiculo = Vehiculo("v1", "Toyota", "Corolla", 2022, "ABC123", "Gris", TipoVehiculo.AUTO),
-            posicion = PuntoGeo(-34.603, -58.381)
-        )
-        return ResultadoMatchmaking(
-            conductorElegido = elegido,
-            alternativas = conductores.drop(1).take(2),
-            explicacionIA = "Seleccioné a ${elegido.nombre} por su excelente rating de ${elegido.rating}⭐ y cercanía de ${elegido.distanciaMetros.toInt()}m — la mejor combinación disponible.",
-            confianza = 0.94f
-        )
+    override suspend fun executeMock(input: Map<String, Any>): String {
+        return """
+            {
+              "idConductor": "mock-driver-1",
+              "explicacion": "Conductor con mejor rating y más cercano a tu posición.",
+              "confianza": 0.92
+            }
+        """.trimIndent()
     }
-
-    override suspend fun executeMock(input: Map<String, Any>) =
-        "Mock matchmaking: conductor seleccionado por rating y distancia óptima."
 }

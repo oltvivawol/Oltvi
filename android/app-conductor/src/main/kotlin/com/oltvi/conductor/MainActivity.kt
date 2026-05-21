@@ -6,10 +6,14 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
-import com.oltvi.core.theme.OltviTheme
 import com.oltvi.conductor.navigation.ConductorNavGraph
+import com.oltvi.core.theme.OltviTheme
 import dagger.hilt.android.AndroidEntryPoint
 
+/**
+ * Single-activity host for the driver app — sets up edge-to-edge rendering,
+ * applies the OLTVI Compose theme and inflates the driver-side NavGraph.
+ */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

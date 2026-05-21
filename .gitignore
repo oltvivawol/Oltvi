@@ -1,26 +1,22 @@
-# Flutter / Dart
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-.packages
-.pub-cache/
-.pub/
-build/
-**/build/
-**/.dart_tool/
-**/pubspec.lock
+# Android / Gradle
+android/.gradle/
+android/build/
+android/**/build/
+android/local.properties
+android/.kotlin/
+android/captures/
+android/.cxx/
+**/*.iml
+*.hprof
+*.jks
+*.keystore
 
-# Flutter platform dirs generadas por flutter create (NO la app nativa Android)
-oltvi_usuario/android/
-oltvi_trabajo/android/
-oltvi_jefe/android/
-oltvi_ai/android/
-oltvi_core/android/
-**/ios/
-**/web/
-**/linux/
-**/macos/
-**/windows/
+# Build outputs
+android/**/release/
+android/**/debug/
+android/**/*.apk
+android/**/*.aab
+android/**/*.aar
 
 # IDE
 .idea/
@@ -28,6 +24,19 @@ oltvi_core/android/
 *.iml
 *.ipr
 *.iws
+.gradle/
+
+# Flutter (archived under flutter-archive/)
+flutter-archive/**/.dart_tool/
+flutter-archive/**/build/
+flutter-archive/**/pubspec.lock
+flutter-archive/**/.flutter-plugins
+flutter-archive/**/.flutter-plugins-dependencies
+flutter-archive/**/ios/
+flutter-archive/**/web/
+flutter-archive/**/linux/
+flutter-archive/**/macos/
+flutter-archive/**/windows/
 
 # Misc
 .DS_Store

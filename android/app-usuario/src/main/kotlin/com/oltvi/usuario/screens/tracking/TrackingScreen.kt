@@ -86,7 +86,10 @@ private enum class TripState(val label: String, val step: Int) {
 }
 
 @Composable
-fun TrackingScreen() {
+fun TrackingScreen(servicioId: String = "active-001") {
+    // Hold the active service id for future telemetry/monitor calls.
+    @Suppress("UNUSED_VARIABLE")
+    val trackedId = servicioId
     // User destination (fixed)
     val userDestination = LatLng(-34.5797, -58.4325)
     val userOrigin = LatLng(-34.6037, -58.3816)

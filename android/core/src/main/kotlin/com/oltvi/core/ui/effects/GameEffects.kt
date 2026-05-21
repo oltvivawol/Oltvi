@@ -1,6 +1,7 @@
 package com.oltvi.core.ui.effects
 
 import android.graphics.BlurMaskFilter
+import android.graphics.Paint
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -27,13 +28,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size as GSize
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -41,101 +43,91 @@ import com.oltvi.core.theme.OltviColors
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.random.Random
 
-// ── 1. PulseRing ──────────────────────────────────────────────────────────
+// =============================================================================
+// 1. PulseRing — 3 staggered rings expanding outward with fading alpha
+// =============================================================================
 
 @Composable
 fun PulseRing(
     modifier: Modifier = Modifier,
-    color: Color = OltviColors.Action,
-    radiusDp: Dp = 60.dp
+    color: Color = OltviColors.action,
+    maxRadiusDp: Dp = 60.dp,
+    ringCount: Int = 3,
+    durationMs: Int = 2000
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "pulseRing")
-
-    val progress0 by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "ring0"
-    )
-    val progress1 by infiniteTransition.animateFloat(
-        initialValue = 0.33f,
-        targetValue = 1.33f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "ring1"
-    )
-    val progress2 by infiniteTransition.animateFloat(
-        initialValue = 0.66f,
-        targetValue = 1.66f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "ring2"
-    )
+    val transition = rememberInfiniteTransition(label = "pulse-ring")
+    val progresses = (0 until ringCount).map { idx ->
+        transition.animateFloat(
+            initialValue = idx.toFloat() / ringCount,
+            targetValue = 1f + idx.toFloat() / ringCount,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = durationMs, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "ring-$idx"
+        )
+    }
 
     Canvas(modifier = modifier) {
-        val maxRadius = radiusDp.toPx()
-
-        fun drawRing(progress: Float) {
-            val p = progress % 1f
-            val radius = maxRadius * p
-            val alpha = (0.6f * (1f - p)).coerceIn(0f, 0.6f)
+        val maxRadiusPx = maxRadiusDp.toPx()
+        val strokePx = 2.dp.toPx()
+        progresses.forEach { state ->
+            val raw = state.value % 1f
+            val radius = maxRadiusPx * raw
+            val alpha = (1f - raw).coerceIn(0f, 1f) * 0.7f
             drawCircle(
                 color = color.copy(alpha = alpha),
                 radius = radius,
-                style = Stroke(width = 2.dp.toPx())
+                style = Stroke(width = strokePx)
             )
         }
-
-        drawRing(progress0)
-        drawRing(progress1)
-        drawRing(progress2)
     }
 }
 
-// ── 2. ParticleField ──────────────────────────────────────────────────────
+// =============================================================================
+// 2. ParticleField — drifting upward particles, wrap to bottom when off-screen
+// =============================================================================
 
 private data class Particle(
-    val x: Float,
-    val y: Float,
-    val size: Float,
-    val speed: Float,
+    val x: Float,        // 0..1
+    val y: Float,        // 0..1
+    val size: Float,     // px
+    val drift: Float,    // normalized per ms
     val alpha: Float
 )
 
 @Composable
-fun ParticleField(modifier: Modifier = Modifier) {
-    val random = remember { kotlin.random.Random(42) }
-
+fun ParticleField(
+    modifier: Modifier = Modifier,
+    particleCount: Int = 80,
+    color: Color = OltviColors.action,
+    speed: Float = 0.5f
+) {
+    val random = remember { Random(42) }
     var particles by remember {
         mutableStateOf(
-            List(80) {
+            List(particleCount) {
                 Particle(
                     x = random.nextFloat(),
                     y = random.nextFloat(),
-                    size = random.nextFloat() * 4f + 2f,   // 2..6
-                    speed = random.nextFloat() * 0.0006f + 0.0002f, // 0.0002..0.0008
-                    alpha = random.nextFloat() * 0.3f + 0.1f         // 0.1..0.4
+                    size = 1.5f + random.nextFloat() * 3.5f,
+                    drift = 0.0003f + random.nextFloat() * 0.0009f,
+                    alpha = 0.15f + random.nextFloat() * 0.4f
                 )
             }
         )
     }
 
-    LaunchedEffect(Unit) {
-        var lastFrame = 0L
+    LaunchedEffect(particleCount, speed) {
+        var last = 0L
         while (true) {
-            withFrameMillis { frameTime ->
-                val delta = if (lastFrame == 0L) 16L else frameTime - lastFrame
-                lastFrame = frameTime
+            withFrameMillis { now ->
+                val delta = if (last == 0L) 16L else (now - last).coerceAtMost(64L)
+                last = now
                 particles = particles.map { p ->
-                    val newY = p.y - p.speed * delta
+                    val newY = p.y - p.drift * delta * speed
                     p.copy(y = if (newY < 0f) 1f else newY)
                 }
             }
@@ -145,7 +137,7 @@ fun ParticleField(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier.fillMaxSize()) {
         particles.forEach { p ->
             drawCircle(
-                color = OltviColors.Action.copy(alpha = p.alpha),
+                color = color.copy(alpha = p.alpha),
                 radius = p.size,
                 center = Offset(p.x * size.width, p.y * size.height)
             )
@@ -153,42 +145,60 @@ fun ParticleField(modifier: Modifier = Modifier) {
     }
 }
 
-// ── 3. NeonGlow ───────────────────────────────────────────────────────────
+// =============================================================================
+// 3. neonGlow — paints a blurred coloured rounded rect behind content
+// =============================================================================
 
-fun Modifier.neonGlow(color: Color, blurRadius: Float = 20f): Modifier = this.drawBehind {
+fun Modifier.neonGlow(
+    color: Color,
+    blurRadius: Dp = 20.dp,
+    cornerRadius: Dp = 16.dp
+): Modifier = this.drawBehind {
+    val blurPx = blurRadius.toPx()
+    val cornerPx = cornerRadius.toPx()
     val paint = Paint().apply {
-        asFrameworkPaint().apply {
-            isAntiAlias = true
-            this.color = android.graphics.Color.TRANSPARENT
-            setShadowLayer(blurRadius, 0f, 0f, color.copy(alpha = 0.7f).toArgb())
-            maskFilter = BlurMaskFilter(blurRadius, BlurMaskFilter.Blur.NORMAL)
-        }
-        this.color = color.copy(alpha = 0.5f)
+        isAntiAlias = true
+        this.color = color.toArgb()
+        maskFilter = BlurMaskFilter(blurPx, BlurMaskFilter.Blur.NORMAL)
     }
-    drawContext.canvas.drawRect(
-        left = -blurRadius,
-        top = -blurRadius,
-        right = size.width + blurRadius,
-        bottom = size.height + blurRadius,
-        paint = paint
+    drawContext.canvas.nativeCanvas.drawRoundRect(
+        -blurPx / 2f,
+        -blurPx / 2f,
+        size.width + blurPx / 2f,
+        size.height + blurPx / 2f,
+        cornerPx,
+        cornerPx,
+        paint
     )
 }
 
-// ── 4. GlassCard ──────────────────────────────────────────────────────────
+// =============================================================================
+// 4. GlassCard — translucent gradient surface with a thin accent border
+// =============================================================================
 
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
+    cornerRadius: Dp = 20.dp,
+    borderColor: Color = OltviColors.glassBorder,
     content: @Composable () -> Unit
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(cornerRadius)
     Box(
         modifier = modifier
-            .background(OltviColors.GlassWhite, shape)
+            .background(
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        OltviColors.glassOverlay,
+                        Color(0x08FFFFFF)
+                    )
+                ),
+                shape = shape
+            )
             .border(
                 width = 1.dp,
                 brush = Brush.linearGradient(
-                    colors = listOf(OltviColors.GlassBorder, Color.Transparent)
+                    colors = listOf(borderColor, borderColor.copy(alpha = 0.15f))
                 ),
                 shape = shape
             )
@@ -197,30 +207,31 @@ fun GlassCard(
     }
 }
 
-// ── 5. WaveformAnimation ──────────────────────────────────────────────────
+// =============================================================================
+// 5. WaveformAnimation — animated audio-style bars
+// =============================================================================
 
 @Composable
 fun WaveformAnimation(
+    modifier: Modifier = Modifier,
     isActive: Boolean,
-    modifier: Modifier = Modifier
+    color: Color = OltviColors.action,
+    barCount: Int = 12
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "waveform")
-    val barCount = 12
-
-    val heights = List(barCount) { index ->
-        val animatedHeight by infiniteTransition.animateFloat(
-            initialValue = 4f + (index % 3) * 6f,
-            targetValue = 24f + (index % 4) * 10f,
+    val transition = rememberInfiniteTransition(label = "waveform")
+    val heights = (0 until barCount).map { idx ->
+        transition.animateFloat(
+            initialValue = 6f + (idx % 3) * 4f,
+            targetValue = 22f + (idx % 4) * 8f,
             animationSpec = infiniteRepeatable(
                 animation = tween(
-                    durationMillis = 400 + index * 80,
+                    durationMillis = 380 + idx * 60,
                     easing = FastOutSlowInEasing
                 ),
                 repeatMode = RepeatMode.Reverse
             ),
-            label = "bar$index"
+            label = "bar-$idx"
         )
-        if (isActive) animatedHeight else 4f
     }
 
     Row(
@@ -228,14 +239,15 @@ fun WaveformAnimation(
         horizontalArrangement = Arrangement.spacedBy(3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        heights.forEach { height ->
+        heights.forEach { state ->
+            val h = if (isActive) state.value else 4f
             Box(
                 modifier = Modifier
                     .width(3.dp)
-                    .height(height.dp)
+                    .height(h.dp)
                     .background(
                         brush = Brush.verticalGradient(
-                            colors = listOf(OltviColors.ActionLight, OltviColors.Action)
+                            colors = listOf(color.copy(alpha = 0.6f), color)
                         ),
                         shape = RoundedCornerShape(2.dp)
                     )
@@ -244,36 +256,36 @@ fun WaveformAnimation(
     }
 }
 
-// ── 6. ShimmerEffect ──────────────────────────────────────────────────────
+// =============================================================================
+// 6. shimmer — sweeping highlight brush, useful for skeleton placeholders
+// =============================================================================
 
-@Composable
-fun ShimmerEffect(modifier: Modifier = Modifier) {
-    val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
-    val shimmer by infiniteTransition.animateFloat(
-        initialValue = -1f,
-        targetValue = 2f,
+fun Modifier.shimmer(durationMs: Int = 1500): Modifier = composed {
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    val phase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            animation = tween(durationMillis = durationMs, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "shimmerOffset"
+        label = "shimmer-phase"
     )
-
-    val surface = OltviColors.Surface
-    val shimmerBrush = Brush.linearGradient(
-        colorStops = arrayOf(
-            (shimmer - 0.3f).coerceIn(0f, 1f) to surface.copy(alpha = 0.6f),
-            shimmer.coerceIn(0f, 1f) to surface.copy(alpha = 0.9f),
-            (shimmer + 0.3f).coerceIn(0f, 1f) to surface.copy(alpha = 0.6f)
-        )
+    val brush = Brush.linearGradient(
+        colors = listOf(
+            Color.White.copy(alpha = 0.0f),
+            Color.White.copy(alpha = 0.25f),
+            Color.White.copy(alpha = 0.0f)
+        ),
+        start = Offset(-200f + 1400f * phase, 0f),
+        end = Offset(0f + 1400f * phase, 400f)
     )
-
-    Box(
-        modifier = modifier.background(shimmerBrush, RoundedCornerShape(8.dp))
-    )
+    this.background(brush)
 }
 
-// ── 7. ConfettiExplosion ──────────────────────────────────────────────────
+// =============================================================================
+// 7. ConfettiExplosion — particles flying outward from a centre point
+// =============================================================================
 
 private data class ConfettiParticle(
     val angle: Float,
@@ -285,64 +297,60 @@ private data class ConfettiParticle(
 
 @Composable
 fun ConfettiExplosion(
-    onComplete: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    center: Offset,
+    onDone: () -> Unit,
+    particleCount: Int = 40
 ) {
-    val random = remember { kotlin.random.Random(System.currentTimeMillis()) }
-    val confettiColors = listOf(
-        OltviColors.Action,
-        OltviColors.ActionLight,
-        OltviColors.Success,
-        OltviColors.Warning
+    val random = remember { Random(System.currentTimeMillis()) }
+    val palette = listOf(
+        OltviColors.action,
+        OltviColors.actionLight,
+        OltviColors.success,
+        OltviColors.warning
     )
 
-    val particles = remember {
-        List(40) {
+    val particles = remember(particleCount) {
+        List(particleCount) {
             ConfettiParticle(
                 angle = random.nextFloat() * 360f,
-                speed = random.nextFloat() * 400f + 200f,
-                size = random.nextFloat() * 6f + 6f,
-                color = confettiColors[random.nextInt(confettiColors.size)],
+                speed = 280f + random.nextFloat() * 420f,
+                size = 6f + random.nextFloat() * 6f,
+                color = palette[random.nextInt(palette.size)],
                 rotation = random.nextFloat() * 360f
             )
         }
     }
 
     var elapsed by remember { mutableStateOf(0L) }
-
     LaunchedEffect(Unit) {
-        val startTime = withFrameMillis { it }
+        var start = 0L
         while (true) {
-            val frameTime = withFrameMillis { it }
-            elapsed = frameTime - startTime
+            withFrameMillis { now ->
+                if (start == 0L) start = now
+                elapsed = now - start
+            }
             if (elapsed >= 2000L) {
-                onComplete()
+                onDone()
                 break
             }
         }
     }
 
     Canvas(modifier = modifier.fillMaxSize()) {
-        val centerX = size.width / 2f
-        val centerY = size.height / 2f
         val t = (elapsed / 2000f).coerceIn(0f, 1f)
-        val alpha = 1f - t
-
+        val gravity = 380f * t * t
+        val alpha = (1f - t).coerceIn(0f, 1f)
         particles.forEach { p ->
-            val angleRad = p.angle * PI.toFloat() / 180f
-            val distance = p.speed * t
-            val px = centerX + cos(angleRad) * distance
-            val py = centerY + sin(angleRad) * distance
-
-            withTransform({
-                rotate(degrees = p.rotation + t * 360f, pivot = Offset(px, py))
-            }) {
-                drawRect(
-                    color = p.color.copy(alpha = alpha),
-                    topLeft = Offset(px - p.size / 2f, py - p.size / 2f),
-                    size = androidx.compose.ui.geometry.Size(p.size, p.size * 0.5f)
-                )
-            }
+            val rad = p.angle * PI.toFloat() / 180f
+            val travel = p.speed * t
+            val px = center.x + cos(rad) * travel
+            val py = center.y + sin(rad) * travel + gravity
+            drawRect(
+                color = p.color.copy(alpha = alpha),
+                topLeft = Offset(px - p.size / 2f, py - p.size / 2f),
+                size = GSize(p.size, p.size * 0.55f)
+            )
         }
     }
 }

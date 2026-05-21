@@ -1,4 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">OLTVI Conductor</string>
+    <string name="app_name">OLTVI Trabajo</string>
+
+    <!-- Bottom navigation labels -->
+    <string name="nav_inicio">Inicio</string>
+    <string name="nav_operacion">Operación</string>
+    <string name="nav_ganancias">Ganancias</string>
+    <string name="nav_perfil">Perfil</string>
+
+    <!-- Online toggle -->
+    <string name="online">ONLINE</string>
+    <string name="offline">OFFLINE</string>
+    <string name="tap_to_go_online">Tocá para conectarte</string>
+    <string name="tap_to_go_offline">Tocá para desconectarte</string>
+
+    <!-- Trip phases -->
+    <string name="phase_to_pickup">Yendo al origen</string>
+    <string name="phase_at_pickup">En el origen</string>
+    <string name="phase_in_route">En ruta</string>
+    <string name="phase_completed">Completado</string>
+
+    <!-- Actions -->
+    <string name="action_arrived">Llegué al origen</string>
+    <string name="action_start_trip">Iniciar viaje</string>
+    <string name="action_complete_trip">Completar viaje</string>
+    <string name="action_open_maps">Navegar con Google Maps</string>
+    <string name="action_accept">Aceptar</string>
+    <string name="action_reject">Rechazar</string>
+    <string name="action_export">Exportar CSV</string>
 </resources>

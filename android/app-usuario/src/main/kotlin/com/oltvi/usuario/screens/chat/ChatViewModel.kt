@@ -26,10 +26,12 @@ class ChatViewModel @Inject constructor(
     private val _uiState = mutableStateOf(ChatUiState())
     val uiStateFlow: State<ChatUiState> = _uiState
 
+    private val userId: String = "user-001"
+
     init {
-        // Welcome message from Olivi
         addAiMessage(
-            "¡Hola! Soy Olivi, tu asistente OLTVI. ¿En qué te puedo ayudar hoy? Puedo ayudarte con información sobre tu viaje, pagos, cancelaciones y mucho más."
+            "¡Hola! Soy Olivi, tu asistente OLTVI. ¿En qué te puedo ayudar hoy? " +
+                "Puedo ayudarte con información sobre tu viaje, pagos, cancelaciones y mucho más."
         )
     }
 
@@ -56,16 +58,26 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val response = orchestrator.atenderSoporte(
+                    idUsuario = userId,
                     mensaje = text,
-                    historialMensajes = _uiState.value.messages
+                    contexto = null
                 )
                 _uiState.value = _uiState.value.copy(
                     messages = _uiState.value.messages + response,
                     isTyping = false
                 )
             } catch (e: Exception) {
-                addAiMessage("Lo siento, hubo un problema al procesar tu consulta. Por favor, intentá de nuevo.")
-                _uiState.value = _uiState.value.copy(isTyping = false)
+                val fallback = MensajeChat(
+                    id = UUID.randomUUID().toString(),
+                    contenido = "Lo siento, hubo un problema al procesar tu consulta. " +
+                        "Por favor, intentá de nuevo en unos segundos.",
+                    esIA = true,
+                    tipo = TipoMensaje.TEXT
+                )
+                _uiState.value = _uiState.value.copy(
+                    messages = _uiState.value.messages + fallback,
+                    isTyping = false
+                )
             }
         }
     }

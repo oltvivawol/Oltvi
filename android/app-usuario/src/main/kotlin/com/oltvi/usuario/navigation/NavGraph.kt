@@ -1,29 +1,27 @@
 package com.oltvi.usuario.navigation
 
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Chat
-import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.MyLocation
-import androidx.compose.material.icons.filled.Payment
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.oltvi.core.theme.OltviColors
-import com.oltvi.core.theme.OltviTypography
 import com.oltvi.usuario.screens.chat.ChatScreen
+import com.oltvi.usuario.screens.components.DefaultBottomNavItems
+import com.oltvi.usuario.screens.components.OltviBottomNavBar
 import com.oltvi.usuario.screens.home.HomeScreen
 import com.oltvi.usuario.screens.payment.PaymentScreen
 import com.oltvi.usuario.screens.profile.ProfileScreen
@@ -33,26 +31,23 @@ import com.oltvi.usuario.screens.tracking.TrackingScreen
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 sealed class OltviRoute(val route: String) {
-    object Splash : OltviRoute("splash")
-    object Home : OltviRoute("home")
-    object Tracking : OltviRoute("tracking")
-    object Payment : OltviRoute("payment")
-    object Profile : OltviRoute("profile")
-    object Chat : OltviRoute("chat")
+    data object Splash : OltviRoute("splash")
+    data object Home : OltviRoute("home")
+    data object Trips : OltviRoute("trips")
+    data object Payments : OltviRoute("payment")
+    data object Profile : OltviRoute("profile")
+    data object Chat : OltviRoute("chat")
+    data object Tracking : OltviRoute("tracking/{servicioId}") {
+        const val ARG_SERVICIO_ID = "servicioId"
+        fun build(servicioId: String): String = "tracking/$servicioId"
+    }
 }
 
-private data class BottomNavItem(
-    val route: OltviRoute,
-    val icon: ImageVector,
-    val label: String
-)
-
-private val bottomNavItems = listOf(
-    BottomNavItem(OltviRoute.Home, Icons.Filled.Map, "Viajar"),
-    BottomNavItem(OltviRoute.Tracking, Icons.Filled.MyLocation, "Seguir"),
-    BottomNavItem(OltviRoute.Payment, Icons.Filled.Payment, "Pagos"),
-    BottomNavItem(OltviRoute.Profile, Icons.Filled.Person, "Perfil"),
-    BottomNavItem(OltviRoute.Chat, Icons.Filled.Chat, "Olivi")
+private val MainTabs = setOf(
+    OltviRoute.Home.route,
+    OltviRoute.Trips.route,
+    OltviRoute.Payments.route,
+    OltviRoute.Profile.route
 )
 
 // ── NavGraph ──────────────────────────────────────────────────────────────────
@@ -63,59 +58,17 @@ fun OltviUsuarioNavGraph(modifier: Modifier = Modifier) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    val showBottomBar = currentRoute != OltviRoute.Splash.route
+    val showBottomBar = currentRoute in MainTabs
 
-    Scaffold(
-        modifier = modifier,
-        containerColor = OltviColors.PrincipalDeep,
-        bottomBar = {
-            if (showBottomBar) {
-                NavigationBar(
-                    containerColor = OltviColors.Surface.copy(alpha = 0.97f),
-                    contentColor = OltviColors.OnSurface
-                ) {
-                    bottomNavItems.forEach { item ->
-                        val isSelected = currentRoute == item.route.route
-                        NavigationBarItem(
-                            selected = isSelected,
-                            onClick = {
-                                navController.navigate(item.route.route) {
-                                    popUpTo(OltviRoute.Home.route) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = {
-                                Icon(
-                                    imageVector = item.icon,
-                                    contentDescription = item.label,
-                                    tint = if (isSelected) OltviColors.Action else OltviColors.OnSurfaceDim
-                                )
-                            },
-                            label = {
-                                Text(
-                                    text = item.label,
-                                    style = OltviTypography.etiqueta,
-                                    color = if (isSelected) OltviColors.Action else OltviColors.OnSurfaceDim
-                                )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                indicatorColor = OltviColors.Action.copy(alpha = 0.15f),
-                                selectedIconColor = OltviColors.Action,
-                                unselectedIconColor = OltviColors.OnSurfaceDim,
-                                selectedTextColor = OltviColors.Action,
-                                unselectedTextColor = OltviColors.OnSurfaceDim
-                            )
-                        )
-                    }
-                }
-            }
-        }
-    ) { paddingValues ->
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(OltviColors.PrincipalDeep)
+    ) {
         NavHost(
             navController = navController,
             startDestination = OltviRoute.Splash.route,
-            modifier = Modifier.padding(paddingValues)
+            modifier = Modifier.fillMaxSize()
         ) {
             composable(OltviRoute.Splash.route) {
                 SplashScreen(onNavigateToHome = {
@@ -127,14 +80,30 @@ fun OltviUsuarioNavGraph(modifier: Modifier = Modifier) {
             composable(OltviRoute.Home.route) {
                 HomeScreen(
                     onNavigateToTracking = {
-                        navController.navigate(OltviRoute.Tracking.route)
+                        navController.navigate(OltviRoute.Tracking.build("active-001"))
+                    },
+                    onNavigateToChat = {
+                        navController.navigate(OltviRoute.Chat.route)
                     }
                 )
             }
-            composable(OltviRoute.Tracking.route) {
-                TrackingScreen()
+            composable(
+                route = OltviRoute.Tracking.route,
+                arguments = listOf(navArgument(OltviRoute.Tracking.ARG_SERVICIO_ID) {
+                    type = NavType.StringType
+                })
+            ) { backStackEntry ->
+                val servicioId = backStackEntry.arguments
+                    ?.getString(OltviRoute.Tracking.ARG_SERVICIO_ID)
+                    ?: "active-001"
+                TrackingScreen(servicioId = servicioId)
             }
-            composable(OltviRoute.Payment.route) {
+            composable(OltviRoute.Trips.route) {
+                // The "trips" tab opens chat with Olivi — it’s the primary support
+                // surface for trip-related actions in the OLTVI experience.
+                ChatScreen()
+            }
+            composable(OltviRoute.Payments.route) {
                 PaymentScreen()
             }
             composable(OltviRoute.Profile.route) {
@@ -143,6 +112,26 @@ fun OltviUsuarioNavGraph(modifier: Modifier = Modifier) {
             composable(OltviRoute.Chat.route) {
                 ChatScreen()
             }
+        }
+
+        // ── Glass bottom navigation overlay ──────────────────────────────────
+        AnimatedVisibility(
+            visible = showBottomBar,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
+            OltviBottomNavBar(
+                items = DefaultBottomNavItems,
+                currentRoute = currentRoute,
+                onItemSelected = { item ->
+                    navController.navigate(item.route) {
+                        popUpTo(OltviRoute.Home.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            )
         }
     }
 }

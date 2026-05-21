@@ -47,8 +47,8 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun PaymentScreen() {
     val mockService = remember { MockDataService() }
-    val trips = remember { mockService.getMockTrips() }
-    val balance = remember { mockService.getMockBalance() }
+    val trips = remember { mockService.getActiveServices() }
+    val balance = remember { 12_450.0 }
 
     Column(
         modifier = Modifier

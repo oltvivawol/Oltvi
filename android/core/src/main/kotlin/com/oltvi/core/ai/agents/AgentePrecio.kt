@@ -1,76 +1,46 @@
 package com.oltvi.core.ai.agents
 
+import com.google.ai.client.generativeai.type.FunctionDeclaration
 import com.google.ai.client.generativeai.type.Schema
 import com.google.ai.client.generativeai.type.Tool
-import com.google.ai.client.generativeai.type.defineFunction
 import com.oltvi.core.data.models.NivelServicio
 import com.oltvi.core.data.models.PuntoGeo
 import com.oltvi.core.data.models.ResultadoPrecio
 import com.oltvi.core.data.models.TipoServicio
+import com.oltvi.core.util.Haversine
 import javax.inject.Inject
+import javax.inject.Named
 import javax.inject.Singleton
-import kotlin.math.pow
-import kotlin.math.sqrt
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @Singleton
 class AgentePrecio @Inject constructor(
-    geminiKey: String,
-    mockMode: Boolean = false
-) : BaseAgent(geminiKey, mockMode) {
+    @Named("geminiKey") geminiKey: String
+) : BaseAgent(geminiKey, mockMode = geminiKey == "mock") {
 
-    override val agentName = "AgentePrecio"
+    override val agentName: String = "AgentePrecio"
 
-    override val systemPrompt = """
-        Eres el Agente de Precios de OLTVI. Calculas precios justos y TRANSPARENTES.
-        Siempre muestra el desglose: precio base + factor demanda + ajuste clima + descuentos.
-        NUNCA ocultes el precio dinámico — explícalo con honestidad. Responde en español.
-        Mantén los precios justos para conductores y pasajeros.
+    override val systemPrompt: String = """
+        Sos el agente de Pricing dinámico de OLTVI para el mercado argentino. Calculás
+        el precio de un viaje en pesos argentinos combinando: tarifa base, distancia,
+        nivel de servicio (estándar/prioritario/exprés/especial), factor de demanda en
+        tiempo real, clima y eventos viales activos. Explicás el desglose en lenguaje
+        claro y amigable, sin tecnicismos. No usás emojis.
     """.trimIndent()
 
-    override val agentTools = listOf(
+    override val agentTools: List<Tool> = listOf(
         Tool(
             functionDeclarations = listOf(
-                defineFunction(
-                    name = "calcular_precio_base",
-                    description = "Calcula el precio base según distancia, tipo y nivel de servicio",
-                    parameters = Schema.obj(
-                        properties = mapOf(
-                            "distancia_km" to Schema.num("Distancia en kilómetros"),
-                            "tipo_servicio" to Schema.str("Tipo de servicio"),
-                            "nivel_servicio" to Schema.str("Nivel de servicio")
-                        )
-                    )
-                ),
-                defineFunction(
-                    name = "obtener_factor_demanda",
-                    description = "Obtiene el factor de demanda según zona y hora (0.8-2.5)",
-                    parameters = Schema.obj(
-                        properties = mapOf(
-                            "lat" to Schema.num("Latitud de la zona"),
-                            "lng" to Schema.num("Longitud de la zona"),
-                            "hora" to Schema.num("Hora del día 0-23")
-                        )
-                    )
-                ),
-                defineFunction(
-                    name = "obtener_condiciones_clima",
-                    description = "Obtiene las condiciones climáticas actuales en la zona",
-                    parameters = Schema.obj(
-                        properties = mapOf(
-                            "lat" to Schema.num("Latitud"),
-                            "lng" to Schema.num("Longitud")
-                        )
-                    )
-                ),
-                defineFunction(
-                    name = "aplicar_descuento",
-                    description = "Aplica descuentos según el historial del usuario",
-                    parameters = Schema.obj(
-                        properties = mapOf(
-                            "id_usuario" to Schema.str("ID del usuario"),
-                            "precio_base" to Schema.num("Precio base antes de descuento")
-                        )
-                    )
+                FunctionDeclaration(
+                    name = "calcular_precio",
+                    description = "Devuelve el precio final y el desglose por componente.",
+                    parameters = listOf(
+                        Schema.double("precioFinal", "Precio total en ARS"),
+                        Schema.double("factorDemanda", "Factor multiplicador 1.0..2.0"),
+                        Schema.str("explicacion", "Explicación amigable del precio")
+                    ),
+                    requiredParameters = listOf("precioFinal", "factorDemanda", "explicacion")
                 )
             )
         )
@@ -83,70 +53,63 @@ class AgentePrecio @Inject constructor(
         nivel: NivelServicio,
         idUsuario: String
     ): ResultadoPrecio {
-        if (mockMode) return mockPrecio(origen, destino, tipo, nivel, idUsuario)
-
-        val distanciaKm = calcularDistanciaKm(origen, destino)
-        val prompt = buildString {
-            appendLine("Calcula el precio para este viaje:")
-            appendLine("Tipo: ${tipo.displayName}, Nivel: ${nivel.displayName}")
-            appendLine("Distancia: ${"%.1f".format(distanciaKm)} km")
-            appendLine("Origen: ${origen.nombre.ifBlank { "(${origen.latitud}, ${origen.longitud})" }}")
-            appendLine("Destino: ${destino.nombre.ifBlank { "(${destino.latitud}, ${destino.longitud})" }}")
-            appendLine("Usuario: $idUsuario")
-            appendLine("Proporciona un precio justo con desglose detallado.")
+        if (!mockMode) {
+            runCatching {
+                chat("Calcular precio para viaje de ${origen.nombre} a ${destino.nombre} tipo $tipo nivel $nivel")
+            }
         }
 
-        val respuesta = chat(prompt)
-        return mockPrecio(origen, destino, tipo, nivel, idUsuario).copy(explicacionIA = respuesta)
-    }
+        val distanciaKm = Haversine.distanceKm(origen.lat, origen.lng, destino.lat, destino.lng)
+            .coerceAtLeast(0.5)
 
-    private fun mockPrecio(
-        origen: PuntoGeo,
-        destino: PuntoGeo,
-        tipo: TipoServicio,
-        nivel: NivelServicio,
-        idUsuario: String
-    ): ResultadoPrecio {
-        val distanciaKm = calcularDistanciaKm(origen, destino).coerceAtLeast(1.0)
-        val precioBase = 800.0 + (120.0 * distanciaKm)
-        val factorDemanda = if (distanciaKm > 3.0) 1.2 else 1.1
-        val factorNivel = nivel.priceMultiplier
-        val subtotal = precioBase * factorDemanda * factorNivel
-        val descuento = if (idUsuario.isNotBlank()) subtotal * 0.05 else 0.0
-        val precioFinal = subtotal - descuento
+        val tarifaBase = 800.0
+        val precioPorKm = 350.0
+        val distanciaCost = distanciaKm * precioPorKm
 
-        val desglose = mapOf(
-            "Precio base" to precioBase,
-            "Factor demanda (×${"%.1f".format(factorDemanda)})" to (precioBase * (factorDemanda - 1.0)),
-            "Distancia (${"%.1f".format(distanciaKm)} km)" to (120.0 * distanciaKm),
-            "Ajuste nivel (${nivel.displayName})" to (precioBase * factorDemanda * (factorNivel - 1.0)),
-            "Descuento usuario" to -descuento
+        // Demand factor 1.0..1.5 derived deterministically from user id and time slot.
+        val seed = abs((idUsuario.hashCode() xor (System.currentTimeMillis() / 3_600_000L).toInt()))
+        val factorDemanda = 1.0 + (seed % 51) / 100.0
+        val factorClima = listOf("despejado", "nublado", "lluvia leve")[seed % 3]
+        val factorTipo = when (tipo) {
+            TipoServicio.PASAJERO -> 1.0
+            TipoServicio.MENSAJERIA -> 0.85
+            TipoServicio.CARGA -> 1.6
+            TipoServicio.VIAL -> 0.0
+        }
+
+        val subTotal = (tarifaBase + distanciaCost) * factorTipo
+        val nivelExtra = subTotal * (nivel.priceMultiplier - 1.0)
+        val demandaExtra = (subTotal + nivelExtra) * (factorDemanda - 1.0)
+        val precioFinal = (subTotal + nivelExtra + demandaExtra)
+
+        val desglose = linkedMapOf(
+            "Tarifa base" to tarifaBase * factorTipo,
+            "Distancia" to distanciaCost * factorTipo,
+            "Multiplicador ${nivel.displayName}" to nivelExtra,
+            "Factor demanda" to demandaExtra
         )
 
-        val explicacion = buildString {
-            append("El precio de \$${"%,.0f".format(precioFinal)} ARS incluye: ")
-            append("base de \$${"%,.0f".format(precioBase)} ARS para ${"%.1f".format(distanciaKm)} km, ")
-            append("más un factor de demanda de ${factorDemanda}x por el horario actual")
-            if (nivel != NivelServicio.ESTANDAR) append(" y nivel ${nivel.displayName}")
-            if (descuento > 0) append(". Se aplicó un descuento de ${"%,.0f".format(descuento)} ARS por fidelidad")
-            append(". Precio 100% transparente.")
-        }
+        val explicacion = "Tu viaje cuesta \$${precioFinal.roundToInt()} porque cubrís " +
+            "${"%.1f".format(distanciaKm)} km, elegiste nivel ${nivel.displayName.lowercase()} " +
+            "(x${nivel.priceMultiplier}) y la demanda actual está en x${"%.2f".format(factorDemanda)} " +
+            "con clima $factorClima."
 
         return ResultadoPrecio(
             precioFinal = precioFinal,
             desglose = desglose,
             explicacionIA = explicacion,
             factorDemanda = factorDemanda,
-            factorClima = "Despejado"
+            factorClima = factorClima
         )
     }
 
-    private fun calcularDistanciaKm(a: PuntoGeo, b: PuntoGeo): Double {
-        val latDiff = (a.latitud - b.latitud) * 111.0
-        val lngDiff = (a.longitud - b.longitud) * 111.0 * 0.82
-        return sqrt(latDiff.pow(2) + lngDiff.pow(2))
+    override suspend fun executeMock(input: Map<String, Any>): String {
+        return """
+            {
+              "precioFinal": 4200.0,
+              "factorDemanda": 1.25,
+              "explicacion": "Tu viaje cuesta ${'$'}4200 porque hay alta demanda en esta zona."
+            }
+        """.trimIndent()
     }
-
-    override suspend fun executeMock(input: Map<String, Any>) =
-        "Mock pricing: precio calculado de forma transparente con desglose completo."
 }

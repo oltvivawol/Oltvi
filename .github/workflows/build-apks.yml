@@ -2,90 +2,98 @@ name: Build OLTVI APKs
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, 'claude/**']
   pull_request:
     branches: [main, master]
-  workflow_dispatch: # Permite correrlo manualmente desde la pestaña Actions
+  workflow_dispatch:
 
 jobs:
   build:
     name: Build ${{ matrix.app }}
     runs-on: ubuntu-latest
-
     strategy:
       fail-fast: false
       matrix:
-        app: [oltvi_usuario, oltvi_trabajo, oltvi_jefe]
+        app: [app-usuario, app-conductor, app-jefe]
 
     steps:
-      - name: Checkout código
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
         with:
-          flutter-version: '3.24.0'
-          channel: 'stable'
-          cache: true
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            android/.gradle
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties', 'android/gradle/libs.versions.toml') }}
+          restore-keys: gradle-${{ runner.os }}-
 
-      - name: Flutter doctor
-        run: flutter doctor -v
-
-      - name: Instalar dependencias de oltvi_core
-        working-directory: ./oltvi_core
-        run: flutter pub get
-
-      - name: Generar plataforma Android si no existe
-        working-directory: ./${{ matrix.app }}
+      - name: Create local.properties
+        working-directory: android
         run: |
-          if [ ! -d "android" ]; then
-            echo "Carpeta android/ no existe, generándola con flutter create..."
-            flutter create --platforms=android --org com.oltvi --project-name ${{ matrix.app }} .
-          fi
+          cat > local.properties <<EOF
+          MAPS_API_KEY=${{ secrets.MAPS_API_KEY }}
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          EOF
 
-      - name: Instalar dependencias de ${{ matrix.app }}
-        working-directory: ./${{ matrix.app }}
-        run: flutter pub get
+      - name: Grant execute permission to gradlew
+        working-directory: android
+        run: chmod +x gradlew
 
-      - name: Build APK release
-        working-directory: ./${{ matrix.app }}
-        run: flutter build apk --release
+      - name: Build ${{ matrix.app }} release APK
+        working-directory: android
+        run: ./gradlew :${{ matrix.app }}:assembleRelease --no-daemon --stacktrace
 
-      - name: Renombrar APK
-        working-directory: ./${{ matrix.app }}/build/app/outputs/flutter-apk
-        run: mv app-release.apk ${{ matrix.app }}.apk
+      - name: Locate APK
+        id: locate
+        run: |
+          APK_PATH=$(find android/${{ matrix.app }}/build/outputs/apk/release -name "*.apk" | head -1)
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          echo "Found APK at: $APK_PATH"
 
-      - name: Subir APK como artifact
+      - name: Upload ${{ matrix.app }} APK
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.app }}-apk
-          path: ./${{ matrix.app }}/build/app/outputs/flutter-apk/${{ matrix.app }}.apk
+          name: oltvi-${{ matrix.app }}-${{ github.sha }}
+          path: ${{ steps.locate.outputs.apk_path }}
           retention-days: 30
 
   release:
-    name: Publicar release con los 3 APKs
+    name: Publish Release
     needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
-
+    permissions:
+      contents: write
     steps:
-      - name: Descargar todos los APKs
+      - name: Download all APKs
         uses: actions/download-artifact@v4
         with:
-          path: ./apks
+          path: apks/
 
-      - name: Listar APKs
-        run: find ./apks -name "*.apk"
-
-      - name: Crear release
+      - name: Create Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v')
         with:
-          files: ./apks/**/*.apk
-          generate_release_notes: true
+          files: apks/**/*.apk
+          tag_name: ${{ github.ref_name }}
+          name: OLTVI ${{ github.ref_name }}
+          body: |
+            ## OLTVI ${{ github.ref_name }}
+
+            APKs nativos Android para los 3 roles:
+            - **OLTVI Usuario** — la app del pasajero
+            - **OLTVI Trabajo** — la app del conductor
+            - **OLTVI Mando** — la app del administrador
+
+            Powered by Gemini AI agents + Google Maps 3D.

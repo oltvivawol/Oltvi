@@ -9,18 +9,23 @@ plugins {
 android {
     namespace = "com.oltvi.conductor"
     compileSdk = 35
+
     defaultConfig {
         applicationId = "com.oltvi.conductor"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Read keys from local.properties — safe for CI with secrets
         val mapsKey = project.findProperty("MAPS_API_KEY")?.toString() ?: ""
         val geminiKey = project.findProperty("GEMINI_API_KEY")?.toString() ?: ""
         buildConfigField("String", "MAPS_API_KEY", "\"$mapsKey\"")
         buildConfigField("String", "GEMINI_API_KEY", "\"$geminiKey\"")
         manifestPlaceholders["MAPS_API_KEY"] = mapsKey
     }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -54,5 +59,6 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.lottie.compose)
     implementation(libs.accompanist.permissions)
+    implementation(libs.accompanist.systemuicontroller)
     implementation(libs.kotlinx.coroutines.android)
 }

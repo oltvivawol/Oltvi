@@ -1,7 +1,6 @@
 package com.oltvi.core.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,29 +9,34 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicText
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarHalf
-import androidx.compose.material.icons.filled.StarOutline
+import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -41,464 +45,441 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.toColorInt
 import com.oltvi.core.data.models.ConductorDisponible
 import com.oltvi.core.data.models.EstadoServicio
 import com.oltvi.core.theme.OltviColors
-import com.oltvi.core.theme.OltviTypography
 import com.oltvi.core.ui.effects.GlassCard
 import com.oltvi.core.ui.effects.neonGlow
 
-// ── Utility ───────────────────────────────────────────────────────────────
-
-private fun parseHexColor(hex: String): Color {
-    return try {
-        val cleaned = hex.trimStart('#')
-        val value = cleaned.toLong(16)
-        when (cleaned.length) {
-            6 -> Color(0xFF000000 or value)
-            8 -> Color(value)
-            else -> OltviColors.Surface
-        }
-    } catch (e: Exception) {
-        OltviColors.Surface
-    }
-}
-
-// ── 0. OltviButtonVariant ─────────────────────────────────────────────────
-
-enum class OltviButtonVariant { Primary, Ghost, Danger }
-
-// ── 1. OltviButton ────────────────────────────────────────────────────────
+// =============================================================================
+// 1. OltviButton — primary CTA with neon glow, gradient and press scale
+// =============================================================================
 
 @Composable
 fun OltviButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    loading: Boolean = false,
     enabled: Boolean = true,
-    isLoading: Boolean = false,
-    icon: ImageVector? = null,
-    variant: OltviButtonVariant = OltviButtonVariant.Primary
+    icon: ImageVector? = null
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.96f else 1f,
-        animationSpec = tween(durationMillis = 100),
-        label = "buttonScale"
+        targetValue = if (pressed && enabled && !loading) 0.96f else 1f,
+        label = "press-scale"
     )
-
-    val gradient = when (variant) {
-        OltviButtonVariant.Primary -> Brush.horizontalGradient(listOf(OltviColors.Action, OltviColors.ActionLight))
-        OltviButtonVariant.Ghost -> Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent))
-        OltviButtonVariant.Danger -> Brush.horizontalGradient(listOf(OltviColors.Error, OltviColors.Error.copy(alpha = 0.8f)))
-    }
-    val disabledGradient = Brush.horizontalGradient(listOf(OltviColors.ActionDim, OltviColors.ActionDim))
-    val textColor = when (variant) {
-        OltviButtonVariant.Primary -> OltviColors.White
-        OltviButtonVariant.Ghost -> OltviColors.Action
-        OltviButtonVariant.Danger -> OltviColors.White
-    }
-    val glowColor = when (variant) {
-        OltviButtonVariant.Primary -> if (enabled) OltviColors.Action else Color.Transparent
-        OltviButtonVariant.Ghost -> Color.Transparent
-        OltviButtonVariant.Danger -> if (enabled) OltviColors.Error else Color.Transparent
-    }
-    val borderModifier = if (variant == OltviButtonVariant.Ghost && enabled) {
-        Modifier.border(1.dp, OltviColors.Action, RoundedCornerShape(12.dp))
-    } else Modifier
+    val isInteractive = enabled && !loading
+    val gradient = Brush.horizontalGradient(
+        colors = if (isInteractive) {
+            listOf(OltviColors.action, OltviColors.actionLight)
+        } else {
+            listOf(Color(0xFF555555), Color(0xFF6B6B6B))
+        }
+    )
 
     Box(
         modifier = modifier
-            .scale(scale)
-            .height(52.dp)
-            .fillMaxWidth()
-            .neonGlow(glowColor, 15f)
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (enabled) gradient else disabledGradient)
-            .then(borderModifier)
+            .height(56.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .then(
-                if (enabled && !isLoading) {
-                    Modifier.clickable(
-                        interactionSource = interactionSource,
-                        indication = null,
-                        onClick = onClick
-                    )
-                } else Modifier
+                if (isInteractive) Modifier.neonGlow(
+                    color = OltviColors.action.copy(alpha = 0.5f),
+                    blurRadius = 24.dp,
+                    cornerRadius = 16.dp
+                ) else Modifier
+            )
+            .background(gradient, RoundedCornerShape(16.dp))
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                enabled = isInteractive,
+                onClick = onClick
             ),
         contentAlignment = Alignment.Center
     ) {
-        if (isLoading) {
-            CircularProgressIndicator(
-                color = textColor,
-                strokeWidth = 2.dp,
-                modifier = Modifier.size(24.dp)
-            )
-        } else {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                if (icon != null) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = textColor,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-                Text(
-                    text = text,
-                    style = OltviTypography.hud.copy(color = textColor)
+        Box(
+            modifier = Modifier.padding(horizontal = 24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            if (loading) {
+                CircularProgressIndicator(
+                    color = Color.White,
+                    strokeWidth = 2.5.dp,
+                    modifier = Modifier.size(22.dp)
                 )
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (icon != null) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(
+                        text = text,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
             }
         }
     }
 }
 
-// ── 2. OltviGlassAppBar ───────────────────────────────────────────────────
+// =============================================================================
+// 2. OltviGlassAppBar — frosted glass top app bar with back + actions
+// =============================================================================
 
 @Composable
 fun OltviGlassAppBar(
     title: String,
     onBack: (() -> Unit)? = null,
-    actions: @Composable (() -> Unit)? = null
+    actions: @Composable RowScope.() -> Unit = {}
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.Transparent)
-            .border(
-                width = 0.5.dp,
-                brush = Brush.horizontalGradient(
-                    colors = listOf(Color.Transparent, OltviColors.GlassBorder, Color.Transparent)
-                ),
-                shape = RoundedCornerShape(0.dp)
-            )
+    val statusBars: PaddingValues = WindowInsets.statusBars.asPaddingValues()
+    GlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = 0.dp
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 12.dp),
+                .padding(top = statusBars.calculateTopPadding())
+                .height(64.dp)
+                .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (onBack != null) {
                 IconButton(onClick = onBack) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        imageVector = Icons.Filled.ArrowBack,
                         contentDescription = "Volver",
-                        tint = OltviColors.OnSurface
+                        tint = Color.White
                     )
                 }
             } else {
-                Spacer(modifier = Modifier.width(48.dp))
+                Spacer(Modifier.width(48.dp))
             }
-
             Text(
                 text = title,
-                style = OltviTypography.subtitulo.copy(color = OltviColors.OnSurface),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 8.dp),
+                color = Color.White,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
             )
-
-            if (actions != null) {
-                actions()
-            }
+            Row(
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+                content = actions
+            )
         }
     }
 }
 
-// ── 3. OltviStatusChip ────────────────────────────────────────────────────
+// =============================================================================
+// 3. OltviStatusChip — pill-shaped chip showing service status colour
+// =============================================================================
 
 @Composable
-fun OltviStatusChip(estado: EstadoServicio) {
-    val parsedColor = parseHexColor(estado.colorHex)
-
-    Surface(
-        color = parsedColor.copy(alpha = 0.15f),
-        shape = RoundedCornerShape(100.dp)
+fun OltviStatusChip(
+    estado: EstadoServicio,
+    modifier: Modifier = Modifier
+) {
+    val color = Color(estado.colorHex.toColorInt())
+    Box(
+        modifier = modifier
+            .background(color.copy(alpha = 0.18f), RoundedCornerShape(50))
+            .border(1.dp, color.copy(alpha = 0.6f), RoundedCornerShape(50))
+            .padding(horizontal = 12.dp, vertical = 6.dp)
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(6.dp)
-                    .background(parsedColor, CircleShape)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = estado.displayName,
-                style = OltviTypography.etiqueta.copy(color = parsedColor),
-                fontWeight = FontWeight.SemiBold
-            )
-        }
+        Text(
+            text = estado.displayName.uppercase(),
+            color = color,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
-// ── 4. OltviRatingStars ───────────────────────────────────────────────────
+// =============================================================================
+// 4. OltviRatingStars — animated row of star icons
+// =============================================================================
 
 @Composable
 fun OltviRatingStars(
-    rating: Double,
-    maxStars: Int = 5,
-    modifier: Modifier = Modifier
+    rating: Float,
+    modifier: Modifier = Modifier,
+    max: Int = 5,
+    size: Dp = 16.dp
 ) {
-    val animatedRating by animateFloatAsState(
-        targetValue = rating.toFloat(),
-        animationSpec = tween(durationMillis = 400),
-        label = "ratingAnim"
+    val animated by animateFloatAsState(
+        targetValue = rating.coerceIn(0f, max.toFloat()),
+        label = "rating-anim"
     )
-
-    Row(modifier = modifier) {
-        for (i in 1..maxStars) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        repeat(max) { idx ->
+            val pos = idx + 1f
             val icon = when {
-                animatedRating >= i.toFloat() -> Icons.Filled.Star
-                animatedRating >= i.toFloat() - 0.5f -> Icons.Filled.StarHalf
-                else -> Icons.Filled.StarOutline
+                animated >= pos -> Icons.Filled.Star
+                animated >= pos - 0.5f -> Icons.Filled.StarHalf
+                else -> Icons.Outlined.StarOutline
             }
-            val tint = if (animatedRating >= i.toFloat() - 0.5f) OltviColors.Warning
-            else OltviColors.OnSurfaceDim
-
+            val tint = if (animated >= pos - 0.5f) OltviColors.warning else Color.White.copy(alpha = 0.35f)
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = tint,
-                modifier = Modifier.size(14.dp)
+                modifier = Modifier.size(size)
             )
         }
     }
 }
 
-// ── 5. OltviDriverCard ────────────────────────────────────────────────────
+// =============================================================================
+// 5. OltviDriverCard — driver summary card with avatar, rating and ETA
+// =============================================================================
 
 @Composable
 fun OltviDriverCard(
-    conductor: ConductorDisponible,
-    modifier: Modifier = Modifier
+    driver: ConductorDisponible,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
 ) {
-    GlassCard(modifier = modifier.fillMaxWidth()) {
+    GlassCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+    ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Avatar
             Box(
                 modifier = Modifier
                     .size(48.dp)
-                    .background(OltviColors.Action, CircleShape),
+                    .clip(CircleShape)
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(OltviColors.action, OltviColors.actionLight)
+                        )
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = conductor.nombre.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
-                    style = OltviTypography.subtitulo.copy(
-                        color = OltviColors.White,
-                        fontWeight = FontWeight.Bold
-                    )
+                    text = driver.nombre.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium
                 )
             }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            // Name + vehicle + rating
+            Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = conductor.nombre,
-                    style = OltviTypography.cuerpo.copy(
-                        color = OltviColors.OnSurface,
-                        fontWeight = FontWeight.Bold
-                    )
+                    text = driver.nombre,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium
                 )
+                Spacer(Modifier.height(2.dp))
+                OltviRatingStars(rating = driver.rating, size = 14.dp)
+                Spacer(Modifier.height(2.dp))
                 Text(
-                    text = conductor.vehiculo.descripcionCorta,
-                    style = OltviTypography.pequeno.copy(color = OltviColors.OnSurfaceDim)
+                    text = "${driver.vehiculo.marca} ${driver.vehiculo.modelo} · ${driver.vehiculo.patente}",
+                    color = Color.White.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.bodySmall
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                OltviRatingStars(rating = conductor.rating)
             }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            // ETA badge
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    modifier = Modifier
-                        .background(OltviColors.Action.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "${conductor.tiempoEstimadoMin}",
-                            style = OltviTypography.subtitulo.copy(
-                                color = OltviColors.Action,
-                                fontWeight = FontWeight.Bold
-                            )
-                        )
-                        Text(
-                            text = "min",
-                            style = OltviTypography.etiqueta.copy(color = OltviColors.OnSurfaceDim)
-                        )
-                    }
-                }
+            Box(
+                modifier = Modifier
+                    .background(OltviColors.action.copy(alpha = 0.18f), RoundedCornerShape(12.dp))
+                    .border(1.dp, OltviColors.action.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = "${driver.tiempoEstimadoMin} min",
+                    color = OltviColors.action,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelLarge
+                )
             }
         }
     }
 }
 
-// ── 6. OltviBottomSheet ───────────────────────────────────────────────────
+// =============================================================================
+// 6. OltviBottomSheet — translucent modal bottom sheet
+// =============================================================================
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OltviBottomSheet(
+    visible: Boolean,
     onDismiss: () -> Unit,
-    content: @Composable () -> Unit
+    content: @Composable ColumnScope.() -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
-
+    if (!visible) return
+    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = OltviColors.Surface,
+        sheetState = state,
+        containerColor = Color.Transparent,
         dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(vertical = 8.dp)
+                    .width(40.dp)
+                    .height(4.dp)
+                    .background(Color.White.copy(alpha = 0.35f), RoundedCornerShape(2.dp))
+            )
+        }
+    ) {
+        GlassCard(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            cornerRadius = 24.dp
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(
-                    modifier = Modifier
-                        .width(40.dp)
-                        .height(4.dp)
-                        .background(OltviColors.Action.copy(alpha = 0.6f), RoundedCornerShape(2.dp))
-                )
-            }
+                    .background(OltviColors.surfaceMid.copy(alpha = 0.85f), RoundedCornerShape(24.dp))
+                    .padding(20.dp),
+                content = content
+            )
         }
-    ) {
-        content()
     }
 }
 
-// ── 7. OltviTextField ─────────────────────────────────────────────────────
+// =============================================================================
+// 7. OltviTextField — dark themed outlined text field
+// =============================================================================
 
 @Composable
 fun OltviTextField(
     value: String,
     onValueChange: (String) -> Unit,
-    placeholder: String,
+    label: String,
     modifier: Modifier = Modifier,
-    leadingIcon: @Composable (() -> Unit)? = null,
-    trailingIcon: @Composable (() -> Unit)? = null
+    leadingIcon: ImageVector? = null,
+    trailingIcon: ImageVector? = null,
+    singleLine: Boolean = true
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        placeholder = {
-            Text(
-                text = placeholder,
-                style = OltviTypography.cuerpo.copy(color = OltviColors.OnSurfaceDim)
-            )
-        },
-        leadingIcon = leadingIcon,
-        trailingIcon = trailingIcon,
+        modifier = modifier.fillMaxWidth(),
+        label = { Text(label) },
+        leadingIcon = leadingIcon?.let { { Icon(it, contentDescription = null) } },
+        trailingIcon = trailingIcon?.let { { Icon(it, contentDescription = null) } },
+        singleLine = singleLine,
+        shape = RoundedCornerShape(14.dp),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = OltviColors.PrincipalDark,
-            unfocusedContainerColor = OltviColors.PrincipalDark,
-            disabledContainerColor = OltviColors.PrincipalDark,
-            focusedBorderColor = OltviColors.Action,
-            unfocusedBorderColor = OltviColors.Divider,
-            focusedTextColor = OltviColors.OnSurface,
-            unfocusedTextColor = OltviColors.OnSurface,
-            cursorColor = OltviColors.Action,
-            focusedLabelColor = OltviColors.Action,
-            unfocusedLabelColor = OltviColors.OnSurfaceDim
-        ),
-        shape = RoundedCornerShape(12.dp),
-        modifier = modifier.fillMaxWidth()
+            focusedTextColor = Color.White,
+            unfocusedTextColor = Color.White,
+            focusedContainerColor = OltviColors.surfaceMid,
+            unfocusedContainerColor = OltviColors.surfaceMid.copy(alpha = 0.7f),
+            cursorColor = OltviColors.action,
+            focusedBorderColor = OltviColors.action,
+            unfocusedBorderColor = OltviColors.glassBorder,
+            focusedLabelColor = OltviColors.actionLight,
+            unfocusedLabelColor = Color.White.copy(alpha = 0.6f),
+            focusedLeadingIconColor = OltviColors.action,
+            unfocusedLeadingIconColor = Color.White.copy(alpha = 0.7f),
+            focusedTrailingIconColor = OltviColors.action,
+            unfocusedTrailingIconColor = Color.White.copy(alpha = 0.7f)
+        )
     )
 }
 
-// ── 8. OltviLogo ──────────────────────────────────────────────────────────
+// =============================================================================
+// 8. OltviLogo — branded text logo "OLTVI" with orange "O" gradient
+// =============================================================================
 
 @Composable
 fun OltviLogo(
     modifier: Modifier = Modifier,
-    size: TextUnit = 28.sp
+    fontSize: TextUnit = 36.sp
 ) {
-    val gradient = Brush.horizontalGradient(
-        colors = listOf(OltviColors.Action, OltviColors.ActionLight)
-    )
-
     val annotated = buildAnnotatedString {
         withStyle(
             SpanStyle(
-                brush = gradient,
-                fontWeight = FontWeight.Black,
-                fontSize = size
+                brush = Brush.horizontalGradient(
+                    colors = listOf(OltviColors.action, OltviColors.actionLight)
+                ),
+                fontWeight = FontWeight.Black
             )
-        ) {
-            append("O")
-        }
+        ) { append("O") }
         withStyle(
             SpanStyle(
-                color = OltviColors.White,
-                fontWeight = FontWeight.Black,
-                fontSize = size
+                color = Color.White,
+                fontWeight = FontWeight.Black
             )
-        ) {
-            append("LTVI")
-        }
+        ) { append("LTVI") }
     }
-
-    BasicText(
+    Text(
         text = annotated,
-        modifier = modifier
+        modifier = modifier,
+        fontSize = fontSize,
+        style = MaterialTheme.typography.displaySmall
     )
 }
 
-// ── 9. MapOverlayButton ───────────────────────────────────────────────────
+// =============================================================================
+// 9. MapOverlayButton — round glass action button for floating map UI
+// =============================================================================
 
 @Composable
 fun MapOverlayButton(
     icon: ImageVector,
     onClick: () -> Unit,
+    contentDescription: String,
     modifier: Modifier = Modifier
 ) {
     Box(
         modifier = modifier
             .size(48.dp)
-            .shadow(elevation = 4.dp, shape = CircleShape)
+            .clip(CircleShape)
+            .background(OltviColors.surfaceMid.copy(alpha = 0.7f))
+            .border(1.dp, OltviColors.glassBorder, CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
-        GlassCard(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-        ) {
-            IconButton(
-                onClick = onClick,
-                modifier = Modifier.size(48.dp)
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = OltviColors.OnSurface,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        }
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = Color.White
+        )
     }
 }

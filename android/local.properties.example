@@ -1,8 +1,11 @@
-# Copiá este archivo como local.properties y completá tus claves
-# NO commitear local.properties — ya está en .gitignore
+# Copy this file to local.properties and fill in your keys.
+# local.properties is gitignored and never committed.
 
-# Google Maps SDK key (obtenela en console.cloud.google.com)
-MAPS_API_KEY=TU_CLAVE_GOOGLE_MAPS_AQUI
+# Google Maps SDK key (Google Cloud Console > APIs & Services > Credentials)
+MAPS_API_KEY=AIza...your_maps_key_here
 
-# Gemini API key (obtenela en aistudio.google.com o console.cloud.google.com)
-GEMINI_API_KEY=TU_CLAVE_GEMINI_AQUI
+# Gemini API key (Google AI Studio: https://aistudio.google.com/app/apikey)
+GEMINI_API_KEY=AIza...your_gemini_key_here
+
+# Android SDK path (auto-set by Android Studio normally)
+# sdk.dir=/Users/you/Library/Android/sdk

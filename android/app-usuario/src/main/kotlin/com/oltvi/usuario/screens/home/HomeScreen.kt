@@ -83,6 +83,7 @@ private const val DARK_MAP_STYLE = """
 @Composable
 fun HomeScreen(
     onNavigateToTracking: () -> Unit,
+    onNavigateToChat: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -241,10 +242,12 @@ fun HomeScreen(
             )
         }
 
-        // ── BOTTOM: HUD CARD (always visible) ───────────────────────────────
+        // ── BOTTOM: HUD CARD (always visible, sits above bottom nav) ────────
         AnimatedVisibility(
             visible = !uiState.showBookingSheet,
-            modifier = Modifier.align(Alignment.BottomCenter),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 92.dp),
             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
         ) {
@@ -265,7 +268,7 @@ fun HomeScreen(
             exit = fadeOut()
         ) {
             FloatingActionButton(
-                onClick = { /* Navigate to Chat */ },
+                onClick = onNavigateToChat,
                 containerColor = OltviColors.Action,
                 contentColor = OltviColors.White,
                 modifier = Modifier

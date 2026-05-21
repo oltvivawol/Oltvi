@@ -1,85 +1,47 @@
 package com.oltvi.core.ai.agents
 
+import com.google.ai.client.generativeai.type.FunctionDeclaration
 import com.google.ai.client.generativeai.type.Schema
 import com.google.ai.client.generativeai.type.Tool
-import com.google.ai.client.generativeai.type.defineFunction
 import com.oltvi.core.data.models.AlertaSeguridad
 import com.oltvi.core.data.models.ContextoViaje
 import com.oltvi.core.data.models.PuntoGeo
 import com.oltvi.core.data.models.SeveridadAlerta
+import com.oltvi.core.util.Haversine
+import java.time.Instant
 import javax.inject.Inject
+import javax.inject.Named
 import javax.inject.Singleton
 import kotlin.math.abs
-import kotlin.random.Random
 
 @Singleton
 class AgenteSeguridad @Inject constructor(
-    geminiKey: String,
-    mockMode: Boolean = false
-) : BaseAgent(geminiKey, mockMode) {
+    @Named("geminiKey") geminiKey: String
+) : BaseAgent(geminiKey, mockMode = geminiKey == "mock") {
 
-    override val agentName = "AgenteSeguridad"
+    override val agentName: String = "AgenteSeguridad"
 
-    override val systemPrompt = """
-        Eres el Agente de Seguridad de OLTVI. Monitoreás viajes en tiempo real.
-        Detectás: desvíos de ruta >300m, paradas inusuales >3 min, velocidad excesiva >120 km/h en zona urbana,
-        cambios de destino no autorizados.
-        Cuando detectás anomalías, generás alertas claras con severidad y acción recomendada.
-        Responde en español.
+    override val systemPrompt: String = """
+        Sos el agente de Seguridad de OLTVI. Monitoreás cada viaje en tiempo real y
+        emitís alertas cuando detectás: desvíos significativos de la ruta, frenadas
+        bruscas, paradas inesperadas en zonas riesgosas, sobrevelocidad o pérdida de
+        señal prolongada. Tu output debe ser sobrio, en español neutral, accionable
+        y nunca alarmista. Indicás severidad y la acción recomendada.
     """.trimIndent()
 
-    override val agentTools = listOf(
+    override val agentTools: List<Tool> = listOf(
         Tool(
             functionDeclarations = listOf(
-                defineFunction(
-                    name = "analizar_desvio_ruta",
-                    description = "Analiza si el vehículo se ha desviado de la ruta planificada",
-                    parameters = Schema.obj(
-                        properties = mapOf(
-                            "id_viaje" to Schema.str("ID del viaje activo"),
-                            "lat_actual" to Schema.num("Latitud actual del vehículo"),
-                            "lng_actual" to Schema.num("Longitud actual del vehículo"),
-                            "umbral_metros" to Schema.num("Umbral de desvío en metros")
-                        )
-                    )
-                ),
-                defineFunction(
-                    name = "detectar_parada_anomala",
-                    description = "Detecta paradas prolongadas fuera del destino",
-                    parameters = Schema.obj(
-                        properties = mapOf(
-                            "id_viaje" to Schema.str("ID del viaje"),
-                            "duracion_segundos" to Schema.num("Duración de la parada en segundos"),
-                            "lat" to Schema.num("Latitud de la parada"),
-                            "lng" to Schema.num("Longitud de la parada")
-                        )
-                    )
-                ),
-                defineFunction(
-                    name = "calcular_velocidad_actual",
-                    description = "Calcula la velocidad actual basada en posiciones consecutivas",
-                    parameters = Schema.obj(
-                        properties = mapOf(
-                            "lat1" to Schema.num("Latitud posición anterior"),
-                            "lng1" to Schema.num("Longitud posición anterior"),
-                            "lat2" to Schema.num("Latitud posición actual"),
-                            "lng2" to Schema.num("Longitud posición actual"),
-                            "delta_segundos" to Schema.num("Tiempo transcurrido en segundos")
-                        )
-                    )
-                ),
-                defineFunction(
-                    name = "enviar_alerta_emergencia",
-                    description = "Envía una alerta de emergencia al centro de control",
-                    parameters = Schema.obj(
-                        properties = mapOf(
-                            "id_viaje" to Schema.str("ID del viaje"),
-                            "tipo_alerta" to Schema.str("Tipo de alerta"),
-                            "descripcion" to Schema.str("Descripción detallada"),
-                            "lat" to Schema.num("Latitud de la emergencia"),
-                            "lng" to Schema.num("Longitud de la emergencia")
-                        )
-                    )
+                FunctionDeclaration(
+                    name = "emitir_alerta",
+                    description = "Emite una alerta de seguridad para un viaje activo.",
+                    parameters = listOf(
+                        Schema.str("tipo", "Tipo de alerta (desvio, parada, velocidad, senal, zona)"),
+                        Schema.str("severidad", "BAJA | MEDIA | ALTA | CRITICA"),
+                        Schema.str("descripcion", "Descripción de la anomalía"),
+                        Schema.str("accionRecomendada", "Acción concreta a tomar")
+                    ),
+                    requiredParameters = listOf("tipo", "severidad", "descripcion", "accionRecomendada")
                 )
             )
         )
@@ -89,63 +51,72 @@ class AgenteSeguridad @Inject constructor(
         contexto: ContextoViaje,
         posicionActual: PuntoGeo
     ): AlertaSeguridad? {
-        if (mockMode) return mockMonitoreo(contexto, posicionActual)
-
-        val prompt = buildString {
-            appendLine("Monitorea el estado de seguridad del viaje:")
-            appendLine("ID viaje: ${contexto.idViaje}")
-            appendLine("Estado: ${contexto.estadoActual?.displayName}")
-            appendLine("Posición actual: (${posicionActual.latitud}, ${posicionActual.longitud})")
-            contexto.destino?.let {
-                appendLine("Destino: (${it.latitud}, ${it.longitud})")
+        if (!mockMode) {
+            runCatching {
+                chat("Evaluá riesgo del viaje ${contexto.idViaje} en posición ${posicionActual.lat},${posicionActual.lng}")
             }
-            appendLine("Puntos de historial: ${contexto.historialPosiciones.size}")
-            appendLine("¿Detectas alguna anomalía? Si no hay riesgo, responde 'SEGURO'.")
         }
 
-        val respuesta = chat(prompt)
-        return if (respuesta.contains("SEGURO", ignoreCase = true)) {
-            null
-        } else {
-            AlertaSeguridad(
-                tipo = "ANOMALIA_DETECTADA",
-                severidad = SeveridadAlerta.MEDIUM,
-                descripcion = respuesta,
-                accionRecomendada = "Verificar estado del viaje con el pasajero"
+        // Deterministic mock — 80% return null, 20% produce a synthetic alert.
+        val seed = abs(("${contexto.idViaje}-${posicionActual.lat}-${posicionActual.lng}").hashCode())
+        if (seed % 5 != 0) return null
+
+        val origen = contexto.origen
+        val desvioKm = if (origen != null) {
+            Haversine.distanceKm(origen.lat, origen.lng, posicionActual.lat, posicionActual.lng)
+        } else 0.0
+
+        val (tipo, severidad, descripcion, accion) = when (seed % 4) {
+            0 -> Quad(
+                "desvio_ruta",
+                if (desvioKm > 3.0) SeveridadAlerta.ALTA else SeveridadAlerta.MEDIA,
+                "El conductor se desvió ${"%.1f".format(desvioKm)} km de la ruta planificada.",
+                "Contactá al conductor por chat para confirmar el motivo del desvío."
+            )
+            1 -> Quad(
+                "parada_inesperada",
+                SeveridadAlerta.MEDIA,
+                "Se detectó una parada de más de 4 minutos fuera de los puntos de la ruta.",
+                "Verificá con el conductor el motivo de la detención."
+            )
+            2 -> Quad(
+                "sobrevelocidad",
+                SeveridadAlerta.ALTA,
+                "El vehículo superó los 90 km/h en zona urbana en los últimos 60 segundos.",
+                "Sugerí al conductor moderar la velocidad por seguridad."
+            )
+            else -> Quad(
+                "perdida_senal",
+                SeveridadAlerta.BAJA,
+                "Sin señal GPS durante 2 minutos. Última posición registrada estable.",
+                "Esperá 60 segundos antes de escalar. Probablemente sea zona sin cobertura."
             )
         }
+
+        return AlertaSeguridad(
+            tipo = tipo,
+            severidad = severidad,
+            descripcion = descripcion,
+            accionRecomendada = accion,
+            timestamp = Instant.now()
+        )
     }
 
-    private fun mockMonitoreo(contexto: ContextoViaje, posicion: PuntoGeo): AlertaSeguridad? {
-        // 80% del tiempo el viaje está en curso normal
-        val random = Random(System.currentTimeMillis())
-        if (random.nextFloat() < 0.80f) return null
+    private data class Quad(
+        val a: String,
+        val b: SeveridadAlerta,
+        val c: String,
+        val d: String
+    )
 
-        // 20% generamos una alerta LOW
-        val destino = contexto.destino
-        val desvioDetectado = if (destino != null) {
-            val latDiff = abs(posicion.latitud - destino.latitud) * 111000
-            val lngDiff = abs(posicion.longitud - destino.longitud) * 111000
-            latDiff > 500 || lngDiff > 500
-        } else false
-
-        return if (desvioDetectado) {
-            AlertaSeguridad(
-                tipo = "DESVIO_RUTA",
-                severidad = SeveridadAlerta.LOW,
-                descripcion = "El vehículo se ha desviado ligeramente de la ruta planificada.",
-                accionRecomendada = "Confirmar con el conductor que la ruta es correcta."
-            )
-        } else {
-            AlertaSeguridad(
-                tipo = "PARADA_INUSUAL",
-                severidad = SeveridadAlerta.LOW,
-                descripcion = "Se detectó una parada breve no programada en la ruta.",
-                accionRecomendada = "Monitorear por 2 minutos adicionales antes de escalar."
-            )
-        }
+    override suspend fun executeMock(input: Map<String, Any>): String {
+        return """
+            {
+              "tipo": "desvio_ruta",
+              "severidad": "MEDIA",
+              "descripcion": "Pequeño desvío detectado, probablemente por tráfico.",
+              "accionRecomendada": "Monitorear durante los próximos 3 minutos."
+            }
+        """.trimIndent()
     }
-
-    override suspend fun executeMock(input: Map<String, Any>) =
-        "SEGURO — viaje transcurre sin anomalías detectadas."
 }

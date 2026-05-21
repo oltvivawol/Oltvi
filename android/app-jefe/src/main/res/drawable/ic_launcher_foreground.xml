@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Dashboard grid: 2x2 tiles representing the OLTVI Mando command center -->
+
+    <!-- Top-left tile (orange — primary metric) -->
+    <path
+        android:pathData="M34,34 L50,34 A2,2 0 0 1 52,36 L52,50 A2,2 0 0 1 50,52 L34,52 A2,2 0 0 1 32,50 L32,36 A2,2 0 0 1 34,34 Z"
+        android:fillColor="#E67E22" />
+
+    <!-- Top-right tile (action-light) -->
+    <path
+        android:pathData="M58,34 L74,34 A2,2 0 0 1 76,36 L76,44 A2,2 0 0 1 74,46 L58,46 A2,2 0 0 1 56,44 L56,36 A2,2 0 0 1 58,34 Z"
+        android:fillColor="#F39C12" />
+
+    <!-- Right middle tile -->
+    <path
+        android:pathData="M58,50 L74,50 A2,2 0 0 1 76,52 L76,60 A2,2 0 0 1 74,62 L58,62 A2,2 0 0 1 56,60 L56,52 A2,2 0 0 1 58,50 Z"
+        android:fillColor="#27AE60" />
+
+    <!-- Bottom-left tile (warning) -->
+    <path
+        android:pathData="M34,58 L42,58 A2,2 0 0 1 44,60 L44,74 A2,2 0 0 1 42,76 L34,76 A2,2 0 0 1 32,74 L32,60 A2,2 0 0 1 34,58 Z"
+        android:fillColor="#F1C40F" />
+
+    <!-- Bottom-right tile (success — main analytics) -->
+    <path
+        android:pathData="M50,58 L74,58 A2,2 0 0 1 76,60 L76,74 A2,2 0 0 1 74,76 L50,76 A2,2 0 0 1 48,74 L48,60 A2,2 0 0 1 50,58 Z"
+        android:fillColor="#FFFFFF" />
+
+    <!-- Mini chart bars inside bottom-right tile -->
+    <path
+        android:pathData="M54,72 L54,68 L57,68 L57,72 Z"
+        android:fillColor="#23374D" />
+    <path
+        android:pathData="M60,72 L60,64 L63,64 L63,72 Z"
+        android:fillColor="#23374D" />
+    <path
+        android:pathData="M66,72 L66,66 L69,66 L69,72 Z"
+        android:fillColor="#23374D" />
+    <path
+        android:pathData="M72,72 L72,62 L75,62 L75,72 Z"
+        android:fillColor="#E67E22" />
+</vector>

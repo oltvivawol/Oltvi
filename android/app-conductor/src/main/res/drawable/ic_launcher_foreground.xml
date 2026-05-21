@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Steering-wheel vector for the OLTVI Conductor launcher icon.
+    Designed to sit inside the adaptive-icon 108x108 safe zone.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outer rim of the steering wheel -->
+    <path
+        android:pathData="M54,18a36,36 0 1,0 0,72 a36,36 0 1,0 0,-72 zM54,26a28,28 0 1,1 0,56 a28,28 0 1,1 0,-56 z"
+        android:fillColor="#E67E22" />
+
+    <!-- Center hub -->
+    <path
+        android:pathData="M54,46a8,8 0 1,0 0,16 a8,8 0 1,0 0,-16 z"
+        android:fillColor="#F39C12" />
+
+    <!-- Top spoke -->
+    <path
+        android:pathData="M50,30 L58,30 L57,46 L51,46 z"
+        android:fillColor="#E67E22" />
+
+    <!-- Lower-left spoke -->
+    <path
+        android:pathData="M28,68 L33,62 L48,57 L48,63 z"
+        android:fillColor="#E67E22" />
+
+    <!-- Lower-right spoke -->
+    <path
+        android:pathData="M80,68 L75,62 L60,57 L60,63 z"
+        android:fillColor="#E67E22" />
+
+    <!-- Inner highlight on hub -->
+    <path
+        android:pathData="M54,49a5,5 0 1,0 0,10 a5,5 0 1,0 0,-10 z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.25" />
+</vector>

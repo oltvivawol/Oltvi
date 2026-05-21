@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- OLTVI brand palette — driver variant. Mirrors com.oltvi.core.theme.OltviColors. -->
+    <color name="oltvi_principal">#FF23374D</color>
+    <color name="oltvi_principal_dark">#FF172535</color>
+    <color name="oltvi_principal_deep">#FF0D1A26</color>
+    <color name="oltvi_action">#FFE67E22</color>
+    <color name="oltvi_action_light">#FFF39C12</color>
+    <color name="oltvi_action_dim">#FF8B4A10</color>
+    <color name="oltvi_success">#FF27AE60</color>
+    <color name="oltvi_warning">#FFF1C40F</color>
+    <color name="oltvi_error">#FFE74C3C</color>
+    <color name="oltvi_surface">#FF1A2733</color>
+    <color name="oltvi_surface_variant">#FF243447</color>
+    <color name="oltvi_on_surface">#FFE8F0F8</color>
+    <color name="oltvi_on_surface_dim">#FF8BA4BB</color>
+    <color name="oltvi_divider">#FF2D4357</color>
+
+    <!-- Driver-specific (darker background per spec) -->
+    <color name="conductor_background">#FF0F1820</color>
+    <color name="ic_launcher_background">#FF0F1820</color>
+</resources>
