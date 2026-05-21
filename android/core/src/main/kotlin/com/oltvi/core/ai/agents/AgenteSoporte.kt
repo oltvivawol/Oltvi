@@ -1,86 +1,43 @@
 package com.oltvi.core.ai.agents
 
+import com.google.ai.client.generativeai.type.FunctionDeclaration
 import com.google.ai.client.generativeai.type.Schema
 import com.google.ai.client.generativeai.type.Tool
-import com.google.ai.client.generativeai.type.defineFunction
 import com.oltvi.core.data.models.ContextoViaje
 import com.oltvi.core.data.models.MensajeChat
 import com.oltvi.core.data.models.TipoMensaje
+import java.time.Instant
 import java.util.UUID
 import javax.inject.Inject
+import javax.inject.Named
 import javax.inject.Singleton
 
 @Singleton
 class AgenteSoporte @Inject constructor(
-    geminiKey: String,
-    mockMode: Boolean = false
-) : BaseAgent(geminiKey, mockMode) {
+    @Named("geminiKey") geminiKey: String
+) : BaseAgent(geminiKey, mockMode = geminiKey == "mock") {
 
-    override val agentName = "AgenteSoporte"
+    override val agentName: String = "AgenteSoporte"
 
-    override val systemPrompt = """
-        Eres Olivi, el asistente de soporte de OLTVI. Sos amable, empático y resolvés problemas rápido.
-        Podés: cancelar viajes, gestionar reembolsos, reportar problemas, escalar a humanos.
-        Tu meta es resolver el 90% de consultas sin intervención humana.
-        Respondé siempre en español. Mensajes cortos, máximo 3 oraciones salvo que sea un proceso complejo.
+    override val systemPrompt: String = """
+        Sos el agente de Soporte al usuario de OLTVI. Atendés consultas en español
+        rioplatense amigable. Resolvés dudas sobre: cancelaciones, reembolsos,
+        objetos perdidos, problemas con el conductor, cobros y promociones. Sos
+        empático, claro y siempre ofrecés un próximo paso concreto. No usás emojis
+        salvo que el usuario los use primero.
     """.trimIndent()
 
-    override val agentTools = listOf(
+    override val agentTools: List<Tool> = listOf(
         Tool(
             functionDeclarations = listOf(
-                defineFunction(
-                    name = "buscar_en_faqs",
-                    description = "Busca la respuesta a una consulta en la base de conocimiento de OLTVI",
-                    parameters = Schema.obj(
-                        properties = mapOf(
-                            "consulta" to Schema.str("Texto de la consulta del usuario"),
-                            "categoria" to Schema.str("Categoría: viaje, pago, conductor, app, cuenta")
-                        )
-                    )
-                ),
-                defineFunction(
-                    name = "cancelar_viaje",
-                    description = "Cancela un viaje activo con el motivo indicado",
-                    parameters = Schema.obj(
-                        properties = mapOf(
-                            "id_viaje" to Schema.str("ID del viaje a cancelar"),
-                            "motivo" to Schema.str("Motivo de la cancelación"),
-                            "id_usuario" to Schema.str("ID del usuario que cancela")
-                        )
-                    )
-                ),
-                defineFunction(
-                    name = "iniciar_reembolso",
-                    description = "Inicia el proceso de reembolso para un viaje",
-                    parameters = Schema.obj(
-                        properties = mapOf(
-                            "id_viaje" to Schema.str("ID del viaje"),
-                            "monto" to Schema.num("Monto a reembolsar en ARS"),
-                            "motivo" to Schema.str("Motivo del reembolso")
-                        )
-                    )
-                ),
-                defineFunction(
-                    name = "crear_ticket_soporte",
-                    description = "Crea un ticket de soporte para seguimiento",
-                    parameters = Schema.obj(
-                        properties = mapOf(
-                            "id_usuario" to Schema.str("ID del usuario"),
-                            "descripcion" to Schema.str("Descripción del problema"),
-                            "prioridad" to Schema.str("Prioridad: baja, media, alta, critica")
-                        )
-                    )
-                ),
-                defineFunction(
-                    name = "escalar_a_humano",
-                    description = "Escala la consulta a un agente humano de soporte",
-                    parameters = Schema.obj(
-                        properties = mapOf(
-                            "id_usuario" to Schema.str("ID del usuario"),
-                            "motivo_escalado" to Schema.str("Por qué se necesita intervención humana"),
-                            "prioridad" to Schema.str("Prioridad del caso")
-                        )
-                    )
+                FunctionDeclaration(
+                    name = "responder_consulta",
+                    description = "Responde una consulta de soporte y opcionalmente sugiere acciones.",
+                    parameters = listOf(
+                        Schema.str("respuesta", "Texto de la respuesta al usuario"),
+                        Schema.str("categoria", "Categoría detectada: cancelacion, reembolso, perdido, conductor, cobro, general")
+                    ),
+                    requiredParameters = listOf("respuesta", "categoria")
                 )
             )
         )
@@ -91,74 +48,80 @@ class AgenteSoporte @Inject constructor(
         mensaje: String,
         contextoViaje: ContextoViaje?
     ): MensajeChat {
-        if (mockMode) return mockSoporte(idUsuario, mensaje, contextoViaje)
+        val texto: String
+        val opciones: List<String>
 
-        val prompt = buildString {
-            appendLine("Usuario: $idUsuario")
-            appendLine("Mensaje: $mensaje")
-            contextoViaje?.let {
-                appendLine("Contexto del viaje: ID=${it.idViaje}, Estado=${it.estadoActual?.displayName}")
+        if (!mockMode) {
+            val live = runCatching { chat(mensaje) }.getOrNull()
+            if (!live.isNullOrBlank()) {
+                return MensajeChat(
+                    id = UUID.randomUUID().toString(),
+                    contenido = live.trim(),
+                    esIA = true,
+                    timestamp = Instant.now(),
+                    tipo = TipoMensaje.TEXTO,
+                    opciones = emptyList()
+                )
             }
         }
 
-        val respuesta = chat(prompt)
-        return MensajeChat(
-            id = UUID.randomUUID().toString(),
-            contenido = respuesta,
-            esIA = true,
-            tipo = TipoMensaje.TEXT
-        )
-    }
-
-    private fun mockSoporte(
-        idUsuario: String,
-        mensaje: String,
-        contexto: ContextoViaje?
-    ): MensajeChat {
-        val mensajeLower = mensaje.lowercase()
-
-        val respuesta = when {
-            mensajeLower.contains("cancel") -> {
-                val idViaje = contexto?.idViaje ?: "tu viaje"
-                "Entiendo que querés cancelar $idViaje. Lo procesé sin cargo ya que el conductor aún no llegó. ¿Hay algo más en lo que te pueda ayudar?"
+        val lower = mensaje.lowercase()
+        when {
+            "cancelar" in lower || "cancelo" in lower -> {
+                texto = "Entiendo, querés cancelar el viaje. Si el conductor todavía no llegó, " +
+                    "la cancelación es sin costo. Si ya está en camino hace más de 2 minutos, " +
+                    "se aplica una tarifa mínima. ¿Querés que lo cancele ahora?"
+                opciones = listOf("Cancelar sin cargo", "Esperar al conductor", "Hablar con un humano")
             }
-            mensajeLower.contains("reembolso") || mensajeLower.contains("devolucion") ||
-                    mensajeLower.contains("devolución") -> {
-                "Iniciamos el reembolso a tu método de pago original. El monto se acredita en 3-5 días hábiles. Te enviaré un email de confirmación en breve."
+            "reembolso" in lower || "devolver" in lower || "devolución" in lower -> {
+                texto = "Para procesar un reembolso necesito el número de viaje y el motivo. " +
+                    "El crédito vuelve al mismo medio de pago en 3 a 5 días hábiles."
+                opciones = listOf("Iniciar reembolso", "Ver mis viajes", "Hablar con un humano")
             }
-            mensajeLower.contains("conductor") || mensajeLower.contains("chofer") -> {
-                "Lamentamos el inconveniente con el conductor. Registré tu reporte y el equipo lo va a revisar. Tu rating del viaje ayuda mucho. ¿Querés que escale el caso?"
+            "perdido" in lower || "olvidé" in lower || "objeto" in lower -> {
+                texto = "Lamento lo del objeto perdido. Te conecto con el último conductor del viaje. " +
+                    "Si no responde en 1 hora, escalamos al equipo de objetos perdidos."
+                opciones = listOf("Contactar conductor", "Reportar objeto", "Hablar con un humano")
             }
-            mensajeLower.contains("pago") || mensajeLower.contains("cobro") -> {
-                "Verifico tu historial de pagos. Todos los cobros están registrados correctamente. Si ves un monto incorrecto, enviame el comprobante y lo revisamos juntos."
+            "problema" in lower || "queja" in lower || "mal" in lower -> {
+                texto = "Disculpá la situación. Para ayudarte mejor, ¿podés contarme qué pasó " +
+                    "durante el viaje? Tu reporte queda registrado y revisamos al conductor."
+                opciones = listOf("Reportar conductor", "Reembolso parcial", "Hablar con un humano")
             }
-            mensajeLower.contains("demora") || mensajeLower.contains("tarda") -> {
-                "El conductor está en camino, las condiciones de tráfico están afectando el ETA. Te aviso cuando esté a 2 minutos. ¡Gracias por la paciencia!"
+            "promo" in lower || "código" in lower || "cupón" in lower -> {
+                texto = "Tenemos promos activas para vos en la sección Beneficios. " +
+                    "Si tenés un código específico, decímelo y lo valido."
+                opciones = listOf("Ver beneficios", "Validar código")
             }
-            mensajeLower.contains("hola") || mensajeLower.contains("ayuda") -> {
-                "¡Hola! Soy Olivi, tu asistente de OLTVI. Puedo ayudarte con viajes, pagos, reembolsos o cualquier consulta. ¿Con qué te ayudo hoy?"
+            "cobro" in lower || "precio" in lower || "caro" in lower -> {
+                texto = "El precio se calcula por distancia, tiempo y demanda. " +
+                    "Si pensás que algo está mal cobrado, abrimos una revisión sin compromiso."
+                opciones = listOf("Revisar último cobro", "Hablar con un humano")
             }
             else -> {
-                "Entendí tu consulta. Déjame verificar los detalles de tu cuenta para darte la mejor respuesta. ¿Podés darme un poco más de contexto sobre tu situación?"
+                texto = "Hola${if (idUsuario.isNotBlank()) "" else ""}, te leo. " +
+                    "Contame en una línea qué necesitás y te ayudo. " +
+                    (contextoViaje?.idViaje?.let { "Veo que tenés activo el viaje $it." } ?: "")
+                opciones = listOf("Mi último viaje", "Reembolsos", "Objeto perdido", "Hablar con un humano")
             }
-        }
-
-        val opciones = when {
-            mensajeLower.contains("cancel") -> listOf("Confirmar cancelación", "Mantener viaje")
-            mensajeLower.contains("hola") || mensajeLower.contains("ayuda") ->
-                listOf("Cancelar viaje", "Solicitar reembolso", "Reportar problema", "Hablar con humano")
-            else -> emptyList()
         }
 
         return MensajeChat(
             id = UUID.randomUUID().toString(),
-            contenido = respuesta,
+            contenido = texto,
             esIA = true,
-            tipo = if (opciones.isNotEmpty()) TipoMensaje.OPTION else TipoMensaje.TEXT,
+            timestamp = Instant.now(),
+            tipo = TipoMensaje.OPCION,
             opciones = opciones
         )
     }
 
-    override suspend fun executeMock(input: Map<String, Any>) =
-        "¡Hola! Soy Olivi. Estoy aquí para ayudarte con cualquier consulta sobre tu viaje."
+    override suspend fun executeMock(input: Map<String, Any>): String {
+        return """
+            {
+              "respuesta": "Hola, ¿en qué te puedo ayudar?",
+              "categoria": "general"
+            }
+        """.trimIndent()
+    }
 }

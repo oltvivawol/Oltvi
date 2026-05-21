@@ -276,6 +276,18 @@ class MockDataService @Inject constructor() {
         )
     }
 
+    fun getEventosViales(): List<EventoVial> {
+        val now = java.time.Instant.now()
+        return listOf(
+            EventoVial("ev1", TipoEventoVial.BACHE, "Bache profundo en la calzada", PuntoGeo(-34.6037, -58.3816, "Av. Corrientes"), "usr1", now.minusSeconds(1800), EstadoEventoVial.CONFIRMADO, SeveridadAlerta.MEDIA),
+            EventoVial("ev2", TipoEventoVial.OBRA, "Obra de gas, carril izquierdo cortado", PuntoGeo(-34.6100, -58.3900, "Santa Fe y Callao"), "usr2", now.minusSeconds(3600), EstadoEventoVial.REPORTADO, SeveridadAlerta.ALTA),
+            EventoVial("ev3", TipoEventoVial.ACCIDENTE, "Choque entre dos vehículos. Tránsito lento.", PuntoGeo(-34.5980, -58.3750, "Autopista 25 de Mayo"), "usr3", now.minusSeconds(600), EstadoEventoVial.VERIFICANDO, SeveridadAlerta.ALTA),
+            EventoVial("ev4", TipoEventoVial.CORTE_TOTAL, "Marcha política — calle cerrada", PuntoGeo(-34.6150, -58.3700, "9 de Julio y Diagonal Norte"), "usr1", now.minusSeconds(7200), EstadoEventoVial.CONFIRMADO, SeveridadAlerta.CRITICA),
+            EventoVial("ev5", TipoEventoVial.INUNDACION, "Agua acumulada, tránsito dificultoso", PuntoGeo(-34.6200, -58.4000, "Av. San Juan"), "usr4", now.minusSeconds(2400), EstadoEventoVial.REPORTADO, SeveridadAlerta.MEDIA),
+            EventoVial("ev6", TipoEventoVial.OTRO, "Semáforo fuera de servicio", PuntoGeo(-34.6050, -58.3850, "Av. Rivadavia y Pueyrredón"), "usr2", now.minusSeconds(900), EstadoEventoVial.CONFIRMADO, SeveridadAlerta.BAJA),
+        )
+    }
+
     // ── Private helpers ────────────────────────────────────────────────────
 
     private fun calcularDistanciaMetros(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {
@@ -285,8 +297,8 @@ class MockDataService @Inject constructor() {
     }
 
     private fun calcularDistanciaKm(a: PuntoGeo, b: PuntoGeo): Double {
-        val dLat = (a.latitud - b.latitud) * 111.0
-        val dLng = (a.longitud - b.longitud) * 111.0 * 0.82
+        val dLat = (a.lat - b.lat) * 111.0
+        val dLng = (a.lng - b.lng) * 111.0 * 0.82
         return sqrt(dLat.pow(2) + dLng.pow(2))
     }
 
