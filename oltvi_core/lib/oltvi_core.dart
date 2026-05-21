@@ -1,0 +1,24 @@
+library oltvi_core;
+
+export 'src/theme/oltvi_colors.dart';
+export 'src/theme/oltvi_theme.dart';
+export 'src/theme/oltvi_text_styles.dart';
+export 'src/models/usuario.dart';
+export 'src/models/servicio.dart';
+export 'src/models/vehiculo.dart';
+export 'src/models/evento_vial.dart';
+export 'src/models/punto_geo.dart';
+export 'src/services/location_service.dart';
+export 'src/services/map_tile_service.dart';
+export 'src/services/storage_service.dart';
+export 'src/services/sync_service.dart';
+export 'src/services/mock_data_service.dart';
+export 'src/widgets/oltvi_button.dart';
+export 'src/widgets/oltvi_card.dart';
+export 'src/widgets/oltvi_app_bar.dart';
+export 'src/widgets/oltvi_map_view.dart';
+export 'src/widgets/oltvi_status_chip.dart';
+export 'src/widgets/oltvi_glass_panel.dart';
+export 'src/widgets/oltvi_logo.dart';
+export 'src/utils/oltvi_constants.dart';
+export 'src/utils/formatters.dart';

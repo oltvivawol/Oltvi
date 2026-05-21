@@ -1,0 +1,91 @@
+name: Build OLTVI APKs
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch: # Permite correrlo manualmente desde la pestaña Actions
+
+jobs:
+  build:
+    name: Build ${{ matrix.app }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [oltvi_usuario, oltvi_trabajo, oltvi_jefe]
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      - name: Instalar dependencias de oltvi_core
+        working-directory: ./oltvi_core
+        run: flutter pub get
+
+      - name: Generar plataforma Android si no existe
+        working-directory: ./${{ matrix.app }}
+        run: |
+          if [ ! -d "android" ]; then
+            echo "Carpeta android/ no existe, generándola con flutter create..."
+            flutter create --platforms=android --org com.oltvi --project-name ${{ matrix.app }} .
+          fi
+
+      - name: Instalar dependencias de ${{ matrix.app }}
+        working-directory: ./${{ matrix.app }}
+        run: flutter pub get
+
+      - name: Build APK release
+        working-directory: ./${{ matrix.app }}
+        run: flutter build apk --release
+
+      - name: Renombrar APK
+        working-directory: ./${{ matrix.app }}/build/app/outputs/flutter-apk
+        run: mv app-release.apk ${{ matrix.app }}.apk
+
+      - name: Subir APK como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.app }}-apk
+          path: ./${{ matrix.app }}/build/app/outputs/flutter-apk/${{ matrix.app }}.apk
+          retention-days: 30
+
+  release:
+    name: Publicar release con los 3 APKs
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Descargar todos los APKs
+        uses: actions/download-artifact@v4
+        with:
+          path: ./apks
+
+      - name: Listar APKs
+        run: find ./apks -name "*.apk"
+
+      - name: Crear release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          files: ./apks/**/*.apk
+          generate_release_notes: true

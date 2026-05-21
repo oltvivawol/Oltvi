@@ -1,0 +1,28 @@
+name: oltvi_usuario
+description: OLTVI Usuario - The Ride. Aplicación para clientes y pasajeros.
+version: 1.0.0+1
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+  flutter: ">=3.19.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  oltvi_core:
+    path: ../oltvi_core
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+  intl: ^0.19.0
+  uuid: ^4.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

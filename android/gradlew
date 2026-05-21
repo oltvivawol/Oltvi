@@ -1,0 +1,16 @@
+#!/bin/sh
+# Gradle wrapper script for Unix
+APP_NAME="Gradle"
+APP_BASE_NAME=`basename "$0"`
+APP_HOME=`pwd -P`
+CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
+
+# Determine Java command
+if [ -n "$JAVA_HOME" ] ; then
+    JAVACMD="$JAVA_HOME/bin/java"
+else
+    JAVACMD="java"
+fi
+
+# Start Gradle
+exec "$JAVACMD" -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"

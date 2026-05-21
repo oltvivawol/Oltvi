@@ -1,0 +1,8 @@
+# Copiá este archivo como local.properties y completá tus claves
+# NO commitear local.properties — ya está en .gitignore
+
+# Google Maps SDK key (obtenela en console.cloud.google.com)
+MAPS_API_KEY=TU_CLAVE_GOOGLE_MAPS_AQUI
+
+# Gemini API key (obtenela en aistudio.google.com o console.cloud.google.com)
+GEMINI_API_KEY=TU_CLAVE_GEMINI_AQUI
