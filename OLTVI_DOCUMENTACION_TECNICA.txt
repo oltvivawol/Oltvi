@@ -1,0 +1,689 @@
+================================================================================
+  OLTVI — DOCUMENTACIÓN TÉCNICA COMPLETA
+  Organización de Logística, Transporte y Vialidad Inteligente
+  Versión 1.0 — Mayo 2026
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 1. VISIÓN DEL PRODUCTO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OLTVI es una plataforma de transporte de pasajeros para el mercado argentino que
+compite directamente con Uber y DiDi. Su diferenciador central es una orquesta
+de 8 agentes de Inteligencia Artificial corriendo en paralelo sobre Gemini 2.0
+Flash, más una experiencia visual de nivel AAA (gráficos de videojuego) sobre
+Google Maps en modo 3D.
+
+Propuesta de valor:
+  • Matchmaking inteligente: el AI elige el conductor óptimo en < 2 segundos
+  • Precio transparente: desglose visible de cada componente del costo
+  • Seguridad activa: monitoreo de desvíos, paradas anómalas y velocidad en tiempo real
+  • Copiloto para conductores: sugerencias de zonas calientes y gestión de ganancias
+  • Soporte sin espera: "Olivi" resuelve el 90% de consultas sin intervención humana
+  • Gráficos inmersivos: efectos de neon, partículas y mapas 3D en tiempo real
+
+Mercado objetivo: Argentina (Buenos Aires como hub principal)
+  • Moneda: ARS (pesos argentinos)
+  • GPS fallback: -34.6037, -58.3816 (Microcentro, CABA)
+  • Idioma: español rioplatense
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 2. ARQUITECTURA TÉCNICA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Estructura del monorepo Android:
+
+  android/
+  ├── core/                   ← Módulo biblioteca compartida
+  │   ├── data/models/        ← Todos los modelos de dominio (Models.kt)
+  │   ├── data/services/      ← MockDataService, LocationService
+  │   ├── theme/              ← OltviTheme, OltviColors, OltviTypography
+  │   ├── ui/effects/         ← 7 efectos gráficos (GameEffects.kt)
+  │   ├── ui/components/      ← 9 componentes reutilizables (OltviComponents.kt)
+  │   ├── ai/agents/          ← 8 agentes Gemini individuales
+  │   ├── ai/orchestrator/    ← OltviOrchestrator (coordina los 8 agentes)
+  │   └── di/CoreModule.kt    ← Hilt DI: FusedLocation, MockData, agentes, orquestrador
+  │
+  ├── app-usuario/            ← App pasajero (flagship)
+  │   ├── screens/login/      ← Teléfono + OTP
+  │   ├── screens/splash/     ← Animación de entrada con partículas
+  │   ├── screens/home/       ← Mapa 3D + búsqueda + conductores en tiempo real
+  │   ├── screens/booking/    ← Selección de destino + precio AI + confirmación
+  │   ├── screens/tracking/   ← Seguimiento en vivo del conductor
+  │   ├── screens/chat/       ← Chat con "Olivi" (AgenteSoporte)
+  │   ├── screens/payment/    ← Historial y medios de pago
+  │   └── screens/profile/    ← Perfil + nivel de usuario + configuración
+  │
+  ├── app-conductor/          ← App conductor (centro de comando HUD)
+  │   ├── screens/login/      ← Teléfono + OTP
+  │   ├── screens/home/       ← Mapa HUD + toggle online/offline + solicitudes entrantes
+  │   ├── screens/operacion/  ← Gestión del viaje activo (4 fases)
+  │   ├── screens/ganancias/  ← Dashboard de ganancias con gráfico de barras
+  │   └── screens/perfil/     ← Datos del conductor + vehículo + documentos
+  │
+  └── app-jefe/               ← App administrador (inteligencia operacional)
+      ├── screens/login/      ← Email + contraseña
+      ├── screens/dashboard/  ← KPIs en vivo + insights AI + alertas
+      ├── screens/flota/      ← Mapa de todos los conductores activos
+      ├── screens/analiticas/ ← Gráficos de ingresos/viajes/calificaciones
+      └── screens/incidentes/ ← Lista y mapa de eventos viales
+
+Patrón de inyección de claves:
+  local.properties → Gradle build → BuildConfig.GEMINI_API_KEY (por app)
+  AppModule.provideGeminiKey() → @Named("geminiKey") → CoreModule agents
+  Si la clave está vacía → modo mock automático (sin internet requerido)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 3. STACK TECNOLÓGICO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Lenguaje y runtime:
+  Kotlin 1.9.24                    → Lenguaje principal, corrutinas, Flow
+  Coroutines 1.8.1                 → Async/await, Dispatchers, callbackFlow
+  Java 17 (source/target)          → Requerido por AGP 8.x
+
+UI:
+  Jetpack Compose BOM 2024.06.00   → Framework UI declarativo
+  Material Design 3                → Sistema de diseño base (overrideado con tema OLTVI)
+  Compose Compiler 1.5.14          → Compatible con Kotlin 1.9.x
+  Navigation Compose               → Navegación type-safe entre pantallas
+
+Dependencia de inyección:
+  Hilt 2.51.1                      → DI basado en Dagger, anotaciones @Inject, @Module
+  Hilt Navigation Compose          → Hilt ViewModels en Compose
+
+Persistencia local:
+  Room 2.6.1                       → SQLite ORM (preparado, no activo en v1.0)
+
+Red:
+  Retrofit 2.11.0 + Gson           → Preparado para APIs propias (no activo en v1.0)
+
+Inteligencia Artificial:
+  google.ai.client.generativeai 0.9.0 → SDK Gemini para Android
+  Modelo: gemini-2.0-flash         → Respuestas < 1s, ideal para tiempo real
+
+Mapas:
+  Google Maps Compose 4.3.3        → Componente @Composable GoogleMap
+  Google Maps SDK 19.0             → MapStyleOptions, CameraPosition, tilt 3D
+  FusedLocationProviderClient      → GPS preciso con batería optimizada
+
+Firebase (preparado, activo al agregar google-services.json):
+  Firebase BOM 33.1.2
+  Firebase Auth                    → Autenticación por teléfono (OTP SMS)
+  Cloud Firestore                  → Base de datos en tiempo real
+  Firebase Cloud Messaging (FCM)   → Push notifications
+
+Multimedia:
+  Coil 2.6.0                       → Carga de imágenes asíncrona
+  Lottie 6.4.0                     → Animaciones JSON
+  Accompanist 0.34.0               → Permissions, SystemUIController
+
+Build:
+  AGP (Android Gradle Plugin) 8.3.2
+  Gradle 8.7
+  Gradle Version Catalog (libs.versions.toml)
+  KSP / KAPT para procesamiento de anotaciones
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 4. LA ORQUESTA DE 8 AGENTES IA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Todos los agentes heredan de BaseAgent que provee:
+  • chat(userMessage, history): String  → 3 reintentos con backoff 1s/2s/4s
+  • executeMock(input): String           → Respuesta estática si mockMode=true
+  • GenerativeModel lazy init            → gemini-2.0-flash con system prompt
+
+─────────────────────────────────────────────────────────────────────────────
+ 4.1  AgenteMatchmaker
+─────────────────────────────────────────────────────────────────────────────
+Rol:        Encontrar al conductor óptimo para cada viaje
+Función:    encontrarMejorConductor(contexto, conductores) → ResultadoMatchmaking
+Algoritmo:  score = rating×0.5 + (1/(distanciaKm+1))×0.5
+            Ordena conductores, filtra incompatibles por tipo de servicio
+System prompt: "Eres el sistema de matchmaking de OLTVI. Evalúa conductores
+               disponibles según distancia (30%), calificación (25%),
+               tasa de aceptación (20%), tipo de servicio (15%), historial (10%)"
+Salida:     ResultadoMatchmaking { conductor, eta, score, explicacion }
+
+─────────────────────────────────────────────────────────────────────────────
+ 4.2  AgentePrecio
+─────────────────────────────────────────────────────────────────────────────
+Rol:        Calcular el precio justo y transparente del viaje
+Función:    calcularPrecio(origen, destino, tipo, nivel, idUsuario) → ResultadoPrecio
+Fórmula:    base=800 ARS + distanciaKm×350 ARS × multiplicadorNivel × factorDemanda
+Niveles:    ESTANDAR×1.0, EXPRES×1.3, ESPECIAL×1.8
+System prompt: "Calcula precios justos y transparentes. Muestra desglose visible:
+               base + distancia + demanda + descuento. Sin precios sorpresa."
+Salida:     ResultadoPrecio { total, desglose, precioBase, distanciaKm, factorDemanda,
+                              descuento, explicacionAI }
+
+─────────────────────────────────────────────────────────────────────────────
+ 4.3  AgenteSeguridad
+─────────────────────────────────────────────────────────────────────────────
+Rol:        Monitor de seguridad en tiempo real durante el viaje
+Función:    monitorearViaje(contexto, posicionActual) → AlertaSeguridad?
+Triggers:   desvío > 500m de ruta, parada > 3 min en zona no esperada,
+            velocidad > 120 km/h, comportamiento anómalo
+System prompt: "Eres el guardián de seguridad de OLTVI. Analiza cada posición GPS
+               en tiempo real. Emite alertas solo cuando hay riesgo real."
+Salida:     AlertaSeguridad? { severidad, mensaje, posicion, accionRecomendada }
+            null si no hay riesgo
+
+─────────────────────────────────────────────────────────────────────────────
+ 4.4  AgenteRuta
+─────────────────────────────────────────────────────────────────────────────
+Rol:        Optimización de ruta con tráfico, clima y alternativas
+Función:    optimizarRuta(origen, destino) → RutaOptimizada
+Considera:  tráfico en tiempo real, obras, eventos, condición climática
+System prompt: "Optimiza rutas para Buenos Aires. Prioriza tiempo sobre distancia.
+               Sugiere alternativas si hay congestión > 20% de demora."
+Salida:     RutaOptimizada { puntos, distanciaKm, tiempoMinutos, alternativas,
+                             advertencias, polyline }
+
+─────────────────────────────────────────────────────────────────────────────
+ 4.5  AgenteSoporte ("Olivi")
+─────────────────────────────────────────────────────────────────────────────
+Rol:        Asistente de soporte conversacional 24/7
+Función:    resolverConsulta(idUsuario, mensaje, contexto?) → MensajeChat
+Capacidades: cancelación, reembolso, reclamos, preguntas frecuentes,
+             escalado a humano si score_confianza < 0.6
+System prompt: "Eres Olivi, la asistente de OLTVI. Amable, directa, rioplatense.
+               Resuelve el 90% de problemas sin escalar. Si no podés, derivá
+               calurosamente a soporte humano. Nunca digas 'no puedo'."
+Salida:     MensajeChat { contenido, tipo, timestamp, opciones, accionRequerida }
+
+─────────────────────────────────────────────────────────────────────────────
+ 4.6  AgenteFraude
+─────────────────────────────────────────────────────────────────────────────
+Rol:        Detección y prevención de fraude en transacciones
+Función:    analizarTransaccion(idViaje, idUsuario, monto) → FraudeResultado
+Detecta:    viajes fantasma, fraude de pago, cuenta tomada, colusión conductor-pasajero
+Score:      0-100 (0=seguro, >70=bloqueo automático, 40-70=revisión manual)
+System prompt: "Eres el sistema antifraude de OLTVI. Analiza cada transacción
+               buscando patrones anómalos. Falsos positivos cuestan usuarios;
+               falsos negativos cuestan dinero. Equilibra ambos riesgos."
+Salida:     FraudeResultado { esFraude, scorRiesgo, tipo, accion, evidencia }
+
+─────────────────────────────────────────────────────────────────────────────
+ 4.7  AgenteCopiloto
+─────────────────────────────────────────────────────────────────────────────
+Rol:        Coach de ganancias para conductores
+Función:    obtenerSugerencia(idConductor, posicion, gananciasHoy) → SugerenciaCopiloto
+Zonas hot:  Palermo, Recoleta, Microcentro, Puerto Madero, Palermo Hollywood,
+            Villa Crespo, Belgrano, San Telmo
+System prompt: "Eres el copiloto de un conductor de OLTVI en Buenos Aires.
+               Sugiere zonas con alta demanda, horarios óptimos, y cuándo
+               tomar un descanso. Prioriza el bienestar y las ganancias."
+Salida:     SugerenciaCopiloto { zona, razon, gananciasEstimadas, distancia,
+                                  prioridad, mensaje }
+
+─────────────────────────────────────────────────────────────────────────────
+ 4.8  AgenteOperaciones
+─────────────────────────────────────────────────────────────────────────────
+Rol:        Inteligencia predictiva para el panel de administración
+Función:    generarInsight(tipo: TipoInsight) → InsightOperaciones
+Tipos:      DEMANDA_PREDICHA, CONDUCTORES_ESCASOS, INGRESOS_ANOMALIA,
+            ZONA_RIESGO, OPTIMIZACION_FLOTA
+System prompt: "Eres el cerebro analítico de OLTVI Operations. Analiza patrones
+               históricos y predice demanda, escasez de conductores y anomalías.
+               Genera insights accionables, no reportes descriptivos."
+Salida:     InsightOperaciones { tipo, titulo, descripcion, impacto, acciones,
+                                  timestamp, prioridad }
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 5. FLUJOS DE USUARIO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+─────────────────────────────────────────────────────────────────────────────
+ 5.1  FLUJO PASAJERO (app-usuario)
+─────────────────────────────────────────────────────────────────────────────
+
+ LOGIN
+   → Ingresa número de teléfono (+54 9 ...)
+   → [Firebase Auth] envía SMS con código OTP de 6 dígitos
+   → Ingresa código → verificado → navega a SPLASH
+
+ SPLASH (2.5s)
+   → ParticleField como fondo
+   → Logo OLTVI con animación fade-in + scale
+   → Tagline: "Tu ruta, nuestra inteligencia"
+   → Auto-navega a HOME
+
+ HOME (pantalla principal)
+   → Google Maps en modo 3D (tilt 30°, dark style personalizado)
+   → PulseRing animado en posición del usuario
+   → Marcadores de conductores disponibles con ETAs
+   → Barra de búsqueda flotante (glass) en la parte superior
+   → Panel inferior: "¿A dónde vas?" + destinos recientes
+   → Botón flotante inferior: chat con Olivi
+
+ BOOKING (al tocar la barra de búsqueda)
+   → Campo de destino con autocompletado
+   → Agentes en paralelo (OltviOrchestrator.procesarSolicitudViaje):
+       • AgenteMatchmaker → mejor conductor disponible
+       • AgentePrecio     → precio con desglose
+       • AgenteRuta       → ruta optimizada
+   → Card del conductor asignado (foto, rating, ETA, vehículo)
+   → Desglose de precio con explicación AI
+   → Selector de tipo de servicio (Estándar / Exprés / Especial)
+   → Botón "Confirmar viaje" → ConfettiExplosion
+
+ TRACKING (durante el viaje)
+   → Mapa con conductor moviéndose hacia el pasajero
+   → Neon polyline marcando la ruta
+   → Contador de ETA con animación de pulso
+   → Card inferior: conductor, calificación, vehículo
+   → Badge de seguridad (AgenteSeguridad en tiempo real)
+   → Botones: Cancelar (glass) / SOS (rojo)
+
+ CHAT (soporte con Olivi)
+   → Interface conversacional con "Olivi"
+   → WaveformAnimation mientras procesa respuesta
+   → Burbujas: glass para Olivi, naranja para usuario
+   → Chips de acción rápida: Cancelar viaje, Reportar, Ver factura
+   → Respuestas via OltviOrchestrator.atenderSoporte()
+
+ PAGOS
+   → Historial de viajes y montos
+   → Gestión de medios de pago (preparado para MercadoPago)
+   → Códigos promocionales
+
+ PERFIL
+   → Avatar + nombre + nivel (Nuevo/Regular/VIP/Premium)
+   → Puntos acumulados + calificación promedio
+   → Configuración de la cuenta
+
+─────────────────────────────────────────────────────────────────────────────
+ 5.2  FLUJO CONDUCTOR (app-conductor)
+─────────────────────────────────────────────────────────────────────────────
+
+ LOGIN
+   → Número de teléfono + OTP (mismo mecanismo que pasajero)
+   → Verificación de conductor activo en el sistema
+
+ HOME (centro de comando)
+   → Mapa dark HUD-style (diferente al de pasajero)
+   → Toggle prominente ONLINE/OFFLINE (verde neón / gris)
+   → Al ponerse Online: OltviOrchestrator.iniciarTurnoConductor()
+       → AgenteCopiloto devuelve zona sugerida
+   → Panel de sugerencias del copiloto (glass card inferior)
+   → Solicitud entrante: card que aparece con animación slide-in
+       • Origen, destino, precio, distancia, ETA al origen
+       • Botones: Aceptar (naranja) / Rechazar (gris)
+   → Overlay de zonas calientes en el mapa
+
+ OPERACIÓN (viaje activo)
+   → Indicador de 4 fases en la parte superior:
+       1. En camino al origen → [Llegué al origen]
+       2. Esperando pasajero  → [Iniciar viaje]
+       3. En ruta             → [Completar viaje]
+       4. Completado          → [Volver al inicio]
+   → Google Maps con ruta al destino actual
+   → Botón "Navegar" → abre Google Maps externo
+   → Botón "SOS" → alerta de seguridad
+   → ConfettiExplosion al completar
+
+ GANANCIAS
+   → Selector Hoy / Esta semana / Este mes
+   → Total animado (contador numérico con easing)
+   → Gráfico de barras Canvas con animación por barra
+   → Card de insight del AgenteCopiloto:
+       "Tu mejor momento fue a las 18:00 en Palermo"
+   → Lista de viajes recientes con destino, hora, precio, estrellas
+
+ PERFIL DEL CONDUCTOR
+   → Avatar con iniciales + calificación (OltviRatingStars)
+   → Estadísticas: rating, viajes totales, tasa de aceptación
+   → Card del vehículo: modelo, color, tipo, patente
+   → Estado de documentos: VTV, seguro, licencia (OK/Vencido)
+   → Resumen de ganancias: este mes / este año
+   → Configuración: notificaciones, privacidad, ayuda, cerrar sesión
+
+─────────────────────────────────────────────────────────────────────────────
+ 5.3  FLUJO ADMINISTRADOR (app-jefe)
+─────────────────────────────────────────────────────────────────────────────
+
+ LOGIN
+   → Email + contraseña (acceso restringido)
+   → Validación básica en v1.0, Firebase Auth en producción
+
+ DASHBOARD (comando central)
+   → Actualización automática cada 30 segundos
+   → Métricas en vivo: viajes activos, conductores online, ETA promedio, ingresos del día
+   → Contadores animados con efecto shimmer
+   → Lista de insights del AgenteOperaciones:
+       Tipo DEMANDA_PREDICHA: "Se espera +40% de demanda en Palermo entre 17-19h"
+       Tipo CONDUCTORES_ESCASOS: "Solo 3 conductores en zona Sur"
+       Tipo INGRESOS_ANOMALIA: "Ingresos 23% por encima del lunes típico"
+   → Banner de alerta crítica si hay incidente activo
+   → Botón "Tomar acción" en cada insight
+
+ FLOTA
+   → Mapa con todos los conductores activos (marcadores de vehículos)
+   → Lista inferior: conductor, zona, estado, calificación
+   → Filtros: por estado (online/offline/en_viaje), por tipo de vehículo
+   → Actualización cada 10 segundos
+
+ ANALÍTICAS
+   → Selector de rango: Hoy / Semana / Mes / Año
+   → Gráficos de barras para: Ingresos, Viajes completados, Calificación promedio
+   → Botón "Exportar" (preparado para CSV)
+
+ INCIDENTES
+   → Lista de EventoVial con severidad, estado, zona, descripción
+   → Filtro por severidad: BAJA / MEDIA / ALTA / CRITICA
+   → 6 incidentes de ejemplo en Buenos Aires:
+       • Accidente en Av. 9 de Julio y Corrientes (ALTA)
+       • Corte en Av. Rivadavia 4500 (MEDIA)
+       • Manifestación en Plaza de Mayo (ALTA)
+       • Inundación en Av. Costanera Sur (CRITICA)
+       • Obras en Av. Cabildo 2100 (BAJA)
+       • Desvío de tránsito en Palermo (MEDIA)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 6. EFECTOS GRÁFICOS (GameEffects.kt)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ 1. PulseRing
+    Dónde: marcador de posición del usuario en el mapa (HomeScreen)
+    Cómo: InfiniteTransition con 3 anillos concéntricos, cada uno con delay escalonado.
+          Canvas drawCircle con alpha y radius animados. Desaparecen al expandirse.
+
+ 2. ParticleField
+    Dónde: SplashScreen y LoginScreen como fondo
+    Cómo: 80 partículas con velocidades y posiciones iniciales aleatorias (random seed fijo).
+          withFrameMillis loop actualiza posiciones. Canvas drawCircle con radio 2-4dp.
+          Conecta partículas cercanas con líneas alpha bajas.
+
+ 3. NeonGlow (Modifier.neonGlow)
+    Dónde: botón online/offline del conductor, avatar del perfil, OltviButton
+    Cómo: Modifier.drawBehind con BlurMaskFilter(blurRadius, SOLID).
+          Dibuja el mismo shape del componente con el color de neon.
+          Layer con hardware acceleration requerido.
+
+ 4. GlassCard
+    Dónde: prácticamente en todos los cards de la app
+    Cómo: Box con background semi-transparente (Color(0xFF1A2733) + 0.85 alpha)
+          más borde de 1dp con gradiente naranja semi-transparente.
+          RoundedCornerShape(16.dp). Eleva contenido via BoxScope.
+
+ 5. WaveformAnimation
+    Dónde: ChatScreen mientras Olivi procesa la respuesta
+    Cómo: 12 barras verticales con InfiniteTransition animando la altura.
+          Cada barra tiene phase offset distinto (π/6 per bar).
+          Color naranja (OltviColors.action) con cornerRadius.
+
+ 6. ShimmerEffect (Modifier.shimmer)
+    Dónde: estados de carga en DashboardScreen y GananciasScreen
+    Cómo: Modifier.drawWithContent con Brush.linearGradient sweeping de izq a der.
+          InfiniteTransition mueve el gradiente con offset repetido.
+          Overlay sobre el contenido real.
+
+ 7. ConfettiExplosion
+    Dónde: confirmación de viaje en BookingSheet, completar viaje en OperacionScreen
+    Cómo: 40 partículas desde el punto de toque (center: Offset).
+          Cada partícula tiene velocidad angular y lineal aleatoria.
+          LaunchedEffect de 2 segundos, luego llama onDone().
+          Canvas en fullscreen overlay transparente.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 7. MODELOS DE DOMINIO (Models.kt)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Enums:
+  TipoServicio:     ESTANDAR, EXPRES, ESPECIAL, MASCOTAS, ACCESIBLE
+  NivelServicio:    BASICO(1.0x), CONFORT(1.3x), PREMIUM(1.8x), VIP(2.5x)
+  EstadoServicio:   SOLICITADO, ACEPTADO, EN_CAMINO, ESPERANDO, EN_RUTA,
+                    COMPLETADO, CANCELADO, NO_ENCONTRADO
+  TipoPerfil:       PASAJERO, CONDUCTOR, ADMINISTRADOR
+  NivelUsuario:     NUEVO, REGULAR, VIP, PREMIUM
+  SeveridadAlerta:  BAJA, MEDIA, ALTA, CRITICA
+  TipoInsight:      DEMANDA_PREDICHA, CONDUCTORES_ESCASOS, INGRESOS_ANOMALIA,
+                    ZONA_RIESGO, OPTIMIZACION_FLOTA
+  AccionFraude:     APROBAR, REVISAR_MANUAL, BLOQUEAR_TEMPORAL, BLOQUEAR_PERMANENTE
+  TipoMensaje:      USUARIO, ASISTENTE, SISTEMA
+  TipoEventoVial:   ACCIDENTE, CORTE, MANIFESTACION, INUNDACION, OBRAS, DESVIO
+  EstadoEventoVial: ACTIVO, RESUELTO, EN_ATENCION
+
+Clases de dominio principales:
+  PuntoGeo(lat, lng, address, timestamp)
+  Servicio(id, pasajeroId, conductorId, origen, destino, estado, tipo, nivel, precio)
+  Usuario(id, nombre, telefono, perfil, nivel, rating, puntos, vehiculoId)
+  Vehiculo(id, marca, modelo, año, color, patente, tipo, capacidad)
+  ConductorDisponible(conductor, vehiculo, posicionActual, distanciaKm, eta, estaOnline)
+  EventoVial(id, tipo, descripcion, posicion, severidad, estado, fechaDeteccion)
+
+Clases de resultado AI:
+  ResultadoMatchmaking(conductor, eta, score, explicacion, tiempoEstimadoArribo)
+  ResultadoPrecio(total, desglose, precioBase, distanciaKm, factorDemanda, descuento, explicacionAI)
+  AlertaSeguridad(severidad, mensaje, posicion, accionRecomendada, timestamp)
+  InsightOperaciones(tipo, titulo, descripcion, impacto, acciones, timestamp, prioridad)
+  MensajeChat(contenido, tipo, timestamp, opciones, accionRequerida)
+  FraudeResultado(esFraude, scoreRiesgo, tipo, accion, evidencia)
+  SugerenciaCopiloto(zona, razon, gananciasEstimadas, distancia, prioridad, mensaje)
+  RutaOptimizada(puntos, distanciaKm, tiempoMinutos, alternativas, advertencias, polyline)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 8. SEGURIDAD Y MANEJO DE CLAVES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+REGLA DE ORO: Las claves NUNCA se commitean al repositorio.
+
+Flujo de claves para desarrollo local:
+  1. android/local.properties (gitignored):
+     MAPS_API_KEY=AIzaSy...
+     GEMINI_API_KEY=AIzaSy...
+  2. Gradle lee local.properties via project.findProperty()
+  3. Inyecta en BuildConfig.MAPS_API_KEY y BuildConfig.GEMINI_API_KEY
+  4. Android Manifest recibe MAPS_API_KEY via manifestPlaceholders
+  5. AppModule (por app) expone BuildConfig.GEMINI_API_KEY via @Named("geminiKey")
+  6. CoreModule recibe la clave y la pasa a los 8 agentes
+  7. Si clave vacía → mockMode=true automáticamente
+
+Flujo de claves para CI/CD (GitHub Actions):
+  1. Secrets en el repo: MAPS_API_KEY, GEMINI_API_KEY
+  2. Workflow inyecta: echo "MAPS_API_KEY=${{ secrets.MAPS_API_KEY }}" >> local.properties
+  3. Gradle build los toma igual que en desarrollo local
+
+Archivos en .gitignore relevantes:
+  android/local.properties
+  **/google-services.json
+  **/*.keystore
+  **/*.jks
+  android/.idea/
+  android/*/build/
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 9. FIREBASE: ESTADO ACTUAL Y ROADMAP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RESPUESTA A LA PREGUNTA "¿USAMOS FIREBASE?": SÍ, RECOMENDADO.
+
+Estado actual (v1.0):
+  ✅ Firebase BOM 33.1.2 en todas las apps
+  ✅ google.services plugin declarado en app-conductor y app-jefe
+  ✅ Dependencias firebase-auth, firebase-firestore, firebase-messaging en deps
+  ⏳ google-services.json pendiente (el usuario debe generarlo)
+  ⏳ Pantallas de login preparadas (OTP UI lista, backend mock)
+
+Para activar Firebase completamente:
+  1. Ir a Firebase Console → console.firebase.google.com
+  2. Crear proyecto "OLTVI" (o vincular al proyecto de Google Cloud existente)
+  3. Agregar 3 apps Android:
+     • com.oltvi.usuario  → descargar google-services.json → android/app-usuario/
+     • com.oltvi.conductor → descargar google-services.json → android/app-conductor/
+     • com.oltvi.jefe     → descargar google-services.json → android/app-jefe/
+  4. Activar en Firebase Console:
+     • Authentication → Phone number (para OTP)
+     • Authentication → Email/Password (para admin)
+     • Cloud Firestore → Create database (modo test para empezar)
+     • Cloud Messaging → activado por defecto
+  5. Descomentar en app-usuario/build.gradle.kts:
+     alias(libs.plugins.google.services)
+
+Esquema de Firestore propuesto:
+  /users/{userId}           → datos del usuario, nivel, puntos
+  /conductores/{id}         → perfil, vehiculo, posicion, online, rating
+  /servicios/{id}           → estado en tiempo real del viaje
+  /eventos_viales/{id}      → incidentes activos
+  /insights/{id}            → insights generados por AgenteOperaciones
+
+Tipos de notificaciones FCM:
+  NUEVA_SOLICITUD           → conductor recibe viaje disponible
+  CONDUCTOR_ASIGNADO        → pasajero recibe confirmación
+  CONDUCTOR_CERCA           → "Tu conductor llega en 2 minutos"
+  VIAJE_INICIADO            → ambos reciben
+  VIAJE_COMPLETADO          → con calificación pendiente
+  ALERTA_SEGURIDAD          → pasajero + ops si AgenteSeguridad detecta riesgo
+  INSIGHT_CRITICO           → admins si hay escasez o anomalía de ingresos
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 10. CÓMO BUILDEAR (paso a paso)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Prerequisitos:
+  • Android Studio Hedgehog (2023.1.1) o superior
+  • JDK 17
+  • Android SDK API 35 instalado
+  • Android SDK Build-Tools 35.0.0
+  • Git
+
+Pasos:
+
+ 1. Clonar el repositorio:
+    git clone https://github.com/oltvivawol/oltvi.git
+    cd oltvi
+
+ 2. Crear local.properties (NUNCA commitear):
+    cat > android/local.properties << EOF
+    sdk.dir=/path/to/your/Android/Sdk
+    MAPS_API_KEY=AIzaSyAPQAGGz1NS0XNYP0syfC-1EtjQl_1RHRg
+    GEMINI_API_KEY=AIzaSyCXwsd-cAw7qks_LHPL3-DQlBbrvaMcQXA
+    EOF
+
+ 3. (Opcional) Agregar google-services.json a cada app para Firebase real.
+    Sin este paso, la app funciona en modo mock/sin-firebase.
+
+ 4. Abrir en Android Studio:
+    File → Open → seleccionar la carpeta /android
+
+ 5. O buildear desde terminal:
+    cd android
+    ./gradlew :app-usuario:assembleDebug
+    ./gradlew :app-conductor:assembleDebug
+    ./gradlew :app-jefe:assembleDebug
+
+ 6. Los APKs quedan en:
+    android/app-usuario/build/outputs/apk/debug/app-debug.apk
+    android/app-conductor/build/outputs/apk/debug/app-debug.apk
+    android/app-jefe/build/outputs/apk/debug/app-debug.apk
+
+ 7. Instalar en dispositivo/emulador:
+    adb install android/app-usuario/build/outputs/apk/debug/app-debug.apk
+
+Modo mock (sin claves):
+    Si local.properties no tiene claves, todos los agentes AI responden
+    con datos de ejemplo realistas (Buenos Aires, conductores argentinos, etc.)
+    El mapa necesita MAPS_API_KEY para renderizar tiles — sin ella muestra
+    fondo gris pero la app no crashea.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 11. CI/CD — GITHUB ACTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Archivo: .github/workflows/build-apks.yml
+
+Triggers:
+  • Push a rama main → build debug de las 3 apps
+  • Push de tag v* → build release de las 3 apps
+
+Matrix:
+  strategy:
+    matrix:
+      app: [app-usuario, app-conductor, app-jefe]
+
+Secretos requeridos en GitHub:
+  MAPS_API_KEY      → Google Cloud Console → APIs → Maps SDK for Android
+  GEMINI_API_KEY    → Google AI Studio → Get API Key
+  KEYSTORE_FILE     → para builds release (base64 del .jks)
+  KEYSTORE_PASSWORD → contraseña del keystore
+  KEY_ALIAS         → alias de la firma
+  KEY_PASSWORD      → contraseña de la clave
+
+Artefactos:
+  • Cada build sube el APK como artifact de GitHub Actions
+  • Disponibles por 7 días post-build (debug) / 30 días (release)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 12. PALETA DE COLORES (OltviColors)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  principal   = #23374D  (azul oscuro, color de marca)
+  action      = #E67E22  (naranja, CTAs, iconos activos, neon glow)
+  actionLight = #F39C12  (naranja claro, estrellas, accentos)
+  success     = #27AE60  (verde, estado OK, botón navegar)
+  warning     = #F1C40F  (amarillo, estrellas de rating)
+  error       = #E74C3C  (rojo, SOS, cerrar sesión, documentos vencidos)
+  surfaceDark = #0F1820  (fondo principal de todas las pantallas)
+  surfaceMid  = #1A2733  (fondo de GlassCard y elementos intermedios)
+  glassOverlay= #14FFFFFF (overlay blanco 8% para el glass effect)
+  glassBorder = #33E67E22 (borde naranja 20% para cards)
+
+Estilo del mapa (dark cinematic):
+  Fondo/geometría:  #0d1a26
+  Labels:           #6b8299
+  Calles:           #1a2b3c
+  Autopistas:       #E67E22 stroke (el naranja de marca aparece en las rutas)
+  Agua:             #091522
+  POIs:             ocultos (limpieza visual)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 13. ROADMAP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FASE 1 (actual — v1.0):
+  ✅ Arquitectura nativa Android completa (3 apps)
+  ✅ 8 agentes AI con Gemini 2.0 Flash
+  ✅ Efectos gráficos AAA (7 efectos)
+  ✅ Login screens (OTP + email)
+  ✅ Google Maps 3D con dark style
+  ✅ Datos mock realistas de Buenos Aires
+  ✅ CI/CD con GitHub Actions
+
+FASE 2 (siguiente sprint):
+  ⏳ Activar Firebase (Auth OTP real, Firestore, FCM)
+  ⏳ Firestore: sync en tiempo real de estado de viaje
+  ⏳ FCM: push notifications para conductor al recibir solicitud
+  ⏳ Google Places Autocomplete en BookingSheet
+  ⏳ Integración Google Directions API para rutas reales
+
+FASE 3 (producción):
+  ⏳ MercadoPago SDK para pagos en Argentina
+  ⏳ Room DB para historial offline
+  ⏳ ProGuard configurado y APK firmado
+  ⏳ Play Store: 3 apps publicadas (interno → alpha → producción)
+  ⏳ Analytics con Firebase Analytics + custom events
+  ⏳ A/B testing con Firebase Remote Config
+
+FASE 4 (escala):
+  ⏳ Kotlin Multiplatform para reutilizar lógica en iOS
+  ⏳ Microservicios backend (Cloud Run + Cloud Spanner)
+  ⏳ ML personalizado con Vertex AI para predicciones de demanda
+  ⏳ Expansión a otras ciudades argentinas (Córdoba, Rosario, Mendoza)
+
+================================================================================
+  Fin del documento — OLTVI v1.0
+  Para preguntas técnicas: contactar al equipo de desarrollo
+================================================================================

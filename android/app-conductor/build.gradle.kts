@@ -18,9 +18,8 @@ android {
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Read keys from local.properties — safe for CI with secrets
-        val mapsKey = project.findProperty("MAPS_API_KEY")?.toString() ?: ""
-        val geminiKey = project.findProperty("GEMINI_API_KEY")?.toString() ?: ""
+        val mapsKey = project.findProperty("MAPS_API_KEY")?.toString() ?: System.getenv("MAPS_API_KEY") ?: ""
+        val geminiKey = project.findProperty("GEMINI_API_KEY")?.toString() ?: System.getenv("GEMINI_API_KEY") ?: ""
         buildConfigField("String", "MAPS_API_KEY", "\"$mapsKey\"")
         buildConfigField("String", "GEMINI_API_KEY", "\"$geminiKey\"")
         manifestPlaceholders["MAPS_API_KEY"] = mapsKey

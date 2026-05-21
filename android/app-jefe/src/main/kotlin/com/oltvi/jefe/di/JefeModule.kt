@@ -1,20 +1,19 @@
 package com.oltvi.jefe.di
 
+import com.oltvi.jefe.BuildConfig
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import javax.inject.Named
+import javax.inject.Singleton
 
-/**
- * Hilt module for the OLTVI Mando (jefe) application.
- *
- * All singleton bindings required by this app — [com.oltvi.core.data.services.MockDataService],
- * [com.oltvi.core.ai.orchestrator.OltviOrchestrator], and every AI agent — are provided by
- * `CoreModule` in the `:core` module. Because both modules are installed in
- * [SingletonComponent], Hilt merges them automatically and no re-declaration is needed here.
- *
- * Add app-jefe-specific bindings (e.g. a Mando-only analytics repository) to this object
- * when the need arises.
- */
 @Module
 @InstallIn(SingletonComponent::class)
-object JefeModule
+object JefeModule {
+
+    @Provides
+    @Singleton
+    @Named("geminiKey")
+    fun provideGeminiKey(): String = BuildConfig.GEMINI_API_KEY
+}

@@ -23,14 +23,14 @@ import com.oltvi.usuario.screens.chat.ChatScreen
 import com.oltvi.usuario.screens.components.DefaultBottomNavItems
 import com.oltvi.usuario.screens.components.OltviBottomNavBar
 import com.oltvi.usuario.screens.home.HomeScreen
+import com.oltvi.usuario.screens.login.LoginScreen
 import com.oltvi.usuario.screens.payment.PaymentScreen
 import com.oltvi.usuario.screens.profile.ProfileScreen
 import com.oltvi.usuario.screens.splash.SplashScreen
 import com.oltvi.usuario.screens.tracking.TrackingScreen
 
-// ── Routes ────────────────────────────────────────────────────────────────────
-
 sealed class OltviRoute(val route: String) {
+    data object Login : OltviRoute("login")
     data object Splash : OltviRoute("splash")
     data object Home : OltviRoute("home")
     data object Trips : OltviRoute("trips")
@@ -50,8 +50,6 @@ private val MainTabs = setOf(
     OltviRoute.Profile.route
 )
 
-// ── NavGraph ──────────────────────────────────────────────────────────────────
-
 @Composable
 fun OltviUsuarioNavGraph(modifier: Modifier = Modifier) {
     val navController = rememberNavController()
@@ -63,13 +61,20 @@ fun OltviUsuarioNavGraph(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(OltviColors.PrincipalDeep)
+            .background(OltviColors.surfaceDark)
     ) {
         NavHost(
             navController = navController,
-            startDestination = OltviRoute.Splash.route,
+            startDestination = OltviRoute.Login.route,
             modifier = Modifier.fillMaxSize()
         ) {
+            composable(OltviRoute.Login.route) {
+                LoginScreen(onLoginSuccess = {
+                    navController.navigate(OltviRoute.Splash.route) {
+                        popUpTo(OltviRoute.Login.route) { inclusive = true }
+                    }
+                })
+            }
             composable(OltviRoute.Splash.route) {
                 SplashScreen(onNavigateToHome = {
                     navController.navigate(OltviRoute.Home.route) {
@@ -99,8 +104,6 @@ fun OltviUsuarioNavGraph(modifier: Modifier = Modifier) {
                 TrackingScreen(servicioId = servicioId)
             }
             composable(OltviRoute.Trips.route) {
-                // The "trips" tab opens chat with Olivi — it’s the primary support
-                // surface for trip-related actions in the OLTVI experience.
                 ChatScreen()
             }
             composable(OltviRoute.Payments.route) {
@@ -114,7 +117,6 @@ fun OltviUsuarioNavGraph(modifier: Modifier = Modifier) {
             }
         }
 
-        // ── Glass bottom navigation overlay ──────────────────────────────────
         AnimatedVisibility(
             visible = showBottomBar,
             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),

@@ -19,59 +19,46 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object CoreModule {
 
-    // Flip to false when API keys are configured in local.properties
-    private const val MOCK_MODE = true
-
     @Provides
     @Singleton
     fun provideFusedLocationClient(
         @ApplicationContext ctx: Context
     ): FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(ctx)
 
-    @Provides
-    @Singleton
-    @Named("geminiKey")
-    fun provideGeminiKey(@ApplicationContext ctx: Context): String {
-        return try {
-            val props = java.util.Properties()
-            ctx.assets.open("local.properties").use { props.load(it) }
-            props.getProperty("GEMINI_API_KEY") ?: System.getenv("GEMINI_API_KEY") ?: "mock"
-        } catch (e: Exception) {
-            System.getenv("GEMINI_API_KEY") ?: "mock"
-        }
-    }
+    // Each app module must provide @Named("geminiKey") from its own BuildConfig.
+    // mockMode is auto-derived: blank or "mock" key → mock responses, real key → Gemini AI.
 
     @Provides @Singleton
     fun provideMatchmaker(@Named("geminiKey") key: String): AgenteMatchmaker =
-        AgenteMatchmaker(key, MOCK_MODE)
+        AgenteMatchmaker(key, key.isBlank() || key == "mock")
 
     @Provides @Singleton
     fun providePrecio(@Named("geminiKey") key: String): AgentePrecio =
-        AgentePrecio(key, MOCK_MODE)
+        AgentePrecio(key, key.isBlank() || key == "mock")
 
     @Provides @Singleton
     fun provideSeguridad(@Named("geminiKey") key: String): AgenteSeguridad =
-        AgenteSeguridad(key, MOCK_MODE)
+        AgenteSeguridad(key, key.isBlank() || key == "mock")
 
     @Provides @Singleton
     fun provideRuta(@Named("geminiKey") key: String): AgenteRuta =
-        AgenteRuta(key, MOCK_MODE)
+        AgenteRuta(key, key.isBlank() || key == "mock")
 
     @Provides @Singleton
     fun provideSoporte(@Named("geminiKey") key: String): AgenteSoporte =
-        AgenteSoporte(key, MOCK_MODE)
+        AgenteSoporte(key, key.isBlank() || key == "mock")
 
     @Provides @Singleton
     fun provideFraude(@Named("geminiKey") key: String): AgenteFraude =
-        AgenteFraude(key, MOCK_MODE)
+        AgenteFraude(key, key.isBlank() || key == "mock")
 
     @Provides @Singleton
     fun provideCopiloto(@Named("geminiKey") key: String): AgenteCopiloto =
-        AgenteCopiloto(key, MOCK_MODE)
+        AgenteCopiloto(key, key.isBlank() || key == "mock")
 
     @Provides @Singleton
     fun provideOperaciones(@Named("geminiKey") key: String): AgenteOperaciones =
-        AgenteOperaciones(key, MOCK_MODE)
+        AgenteOperaciones(key, key.isBlank() || key == "mock")
 
     @Provides @Singleton
     fun provideOrchestrator(

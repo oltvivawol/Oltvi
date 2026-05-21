@@ -1,6 +1,6 @@
-package com.oltvi.usuario.di
+package com.oltvi.conductor.di
 
-import com.oltvi.usuario.BuildConfig
+import com.oltvi.conductor.BuildConfig
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -10,7 +10,7 @@ import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
-object UsuarioModule {
+object ConductorModule {
 
     @Provides
     @Singleton
