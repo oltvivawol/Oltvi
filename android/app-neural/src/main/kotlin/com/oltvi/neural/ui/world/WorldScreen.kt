@@ -134,6 +134,9 @@ fun WorldScreen(
             }
         }
 
+        // ── Season particle overlay (passes touches through to map) ─────────
+        WorldSeasonOverlay()
+
         // ── TOP HUD ──────────────────────────────────────────────────────────
         AnimatedVisibility(
             visible = hudVisible,
