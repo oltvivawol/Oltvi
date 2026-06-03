@@ -67,7 +67,10 @@ data class PerfilNeural(
     val reputacion: Int = 100,
     val misionesCompletadas: Int = 0,
     val logros: List<Logro> = emptyList(),
-    val fechaIngreso: Instant = Instant.now()
+    val fechaIngreso: Instant = Instant.now(),
+    val monedas: Int = 500,
+    val inventario: List<String> = emptyList(),
+    val equipamiento: EquipamientoAvatar = EquipamientoAvatar()
 ) {
     val inicial: String get() = nombre.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
 

@@ -77,7 +77,9 @@ fun WorldScreen(
     onNavigateToProfile: () -> Unit,
     onNavigateToMisiones: () -> Unit,
     onNavigateToGuia: () -> Unit,
-    onNavigateToAvatar: () -> Unit = {}
+    onNavigateToAvatar: () -> Unit = {},
+    onNavigateToTienda: () -> Unit = {},
+    onNavigateToWorld3D: () -> Unit = {}
 ) {
     val nc = LocalNeuralColors.current
     val zonas = remember { NeuralSeedData.zonasBarrio() }
@@ -172,7 +174,9 @@ fun WorldScreen(
                 onMisiones = onNavigateToMisiones,
                 onGuia = onNavigateToGuia,
                 onAvatar = onNavigateToAvatar,
-                onPerfil = onNavigateToProfile
+                onPerfil = onNavigateToProfile,
+                onTienda = onNavigateToTienda,
+                onWorld3D = onNavigateToWorld3D
             )
         }
     }
@@ -356,7 +360,9 @@ private fun BottomHUD(
     onMisiones: () -> Unit,
     onGuia: () -> Unit,
     onAvatar: () -> Unit,
-    onPerfil: () -> Unit
+    onPerfil: () -> Unit,
+    onTienda: () -> Unit = {},
+    onWorld3D: () -> Unit = {}
 ) {
     val nc = LocalNeuralColors.current
     Box(
@@ -374,8 +380,9 @@ private fun BottomHUD(
             verticalAlignment = Alignment.CenterVertically
         ) {
             HudNavItem("Misiones", "⚡", misionesActivas.toString(), NeuralColors.xpGold, onMisiones)
-            HudNavItem("Avatar", "🧑", "", NeuralColors.neural, onAvatar)
+            HudNavItem("Tienda", "🛍️", "", NeuralColors.neural, onTienda)
             GuiaButton(onClick = onGuia)
+            World3DButton(onClick = onWorld3D)
             HudNavItem("Perfil", "📊", "", NeuralColors.electric, onPerfil)
         }
     }
@@ -436,5 +443,28 @@ private fun GuiaButton(onClick: () -> Unit) {
         contentAlignment = Alignment.Center
     ) {
         Text("🧠", fontSize = 26.sp)
+    }
+}
+
+@Composable
+private fun World3DButton(onClick: () -> Unit) {
+    val nc = LocalNeuralColors.current
+    val infinite = rememberInfiniteTransition(label = "3d_pulse")
+    val pulse by infinite.animateFloat(
+        initialValue = 1f, targetValue = 1.06f,
+        animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing), RepeatMode.Reverse),
+        label = "3d_scale"
+    )
+    Box(
+        modifier = Modifier
+            .size(52.dp)
+            .scale(pulse)
+            .clip(CircleShape)
+            .background(Brush.radialGradient(listOf(NeuralColors.xpGold, NeuralColors.xpGold.copy(0.6f))))
+            .border(2.dp, Color.White.copy(0.3f), CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text("🕹️", fontSize = 22.sp)
     }
 }

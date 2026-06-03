@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.kapt)
+    alias(libs.plugins.compose.compiler)
     alias(libs.plugins.hilt)
     alias(libs.plugins.google.services)
 }
@@ -44,9 +45,6 @@ android {
         compose = true
         buildConfig = true
     }
-    composeOptions {
-        kotlinCompilerExtensionVersion = libs.versions.compose.compiler.get()
-    }
     packaging {
         resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
     }
@@ -78,4 +76,8 @@ dependencies {
     implementation(libs.gemini.generativeai)
     implementation(platform(libs.firebase.bom))
     implementation(libs.bundles.firebase)
+    implementation(libs.firebase.storage)
+
+    // Motor 3D Compose-native (avatar 3ra persona)
+    implementation(libs.sceneview)
 }

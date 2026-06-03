@@ -14,7 +14,6 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.oltvi.neural.data.AvatarConfig
 import com.oltvi.neural.data.ClaseRPG
 import com.oltvi.neural.data.ObjetivoVida
 import com.oltvi.neural.data.PerfilNeural
@@ -23,15 +22,19 @@ import com.oltvi.neural.ui.guide.GuiaScreen
 import com.oltvi.neural.ui.missions.MisionesScreen
 import com.oltvi.neural.ui.onboarding.OnboardingScreen
 import com.oltvi.neural.ui.profile.ProfileScreen
+import com.oltvi.neural.ui.shop.TiendaScreen
 import com.oltvi.neural.ui.world.WorldScreen
+import com.oltvi.neural.ui.world3d.Avatar3DScreen
 
 sealed class NeuralRoute(val route: String) {
     object Onboarding : NeuralRoute("onboarding")
     object World : NeuralRoute("world")
+    object World3D : NeuralRoute("world_3d")
     object Profile : NeuralRoute("profile")
     object Misiones : NeuralRoute("misiones")
     object Guia : NeuralRoute("guia")
     object AvatarCustomizer : NeuralRoute("avatar_customizer")
+    object Tienda : NeuralRoute("tienda")
 }
 
 private val DEFAULT_PERFIL = PerfilNeural(
@@ -110,7 +113,16 @@ fun NeuralNavGraph(
                 onNavigateToProfile = { navController.navigate(NeuralRoute.Profile.route) },
                 onNavigateToMisiones = { navController.navigate(NeuralRoute.Misiones.route) },
                 onNavigateToGuia = { navController.navigate(NeuralRoute.Guia.route) },
-                onNavigateToAvatar = { navController.navigate(NeuralRoute.AvatarCustomizer.route) }
+                onNavigateToAvatar = { navController.navigate(NeuralRoute.AvatarCustomizer.route) },
+                onNavigateToTienda = { navController.navigate(NeuralRoute.Tienda.route) },
+                onNavigateToWorld3D = { navController.navigate(NeuralRoute.World3D.route) }
+            )
+        }
+
+        composable(NeuralRoute.World3D.route) {
+            Avatar3DScreen(
+                perfil = perfilLocal,
+                onBack = { navController.popBackStack() }
             )
         }
 
@@ -133,6 +145,17 @@ fun NeuralNavGraph(
             GuiaScreen(
                 perfil = perfilLocal,
                 onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(NeuralRoute.Tienda.route) {
+            TiendaScreen(
+                perfil = perfilLocal,
+                onBack = { navController.popBackStack() },
+                onPerfilUpdate = { actualizado ->
+                    perfilLocal = actualizado
+                    onPerfilUpdate?.invoke(actualizado)
+                }
             )
         }
     }
