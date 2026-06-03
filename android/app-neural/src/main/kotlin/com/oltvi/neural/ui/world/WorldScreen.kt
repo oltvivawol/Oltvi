@@ -1,0 +1,388 @@
+package com.oltvi.neural.ui.world
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.MapStyleOptions
+import com.google.maps.android.compose.Circle
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.MapProperties
+import com.google.maps.android.compose.MapType
+import com.google.maps.android.compose.MapUiSettings
+import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.rememberCameraPositionState
+import com.google.maps.android.compose.rememberMarkerState
+import com.oltvi.neural.data.NeuralSeedData
+import com.oltvi.neural.data.PerfilNeural
+import com.oltvi.neural.data.ZonaBarrio
+import com.oltvi.neural.theme.LocalNeuralColors
+import com.oltvi.neural.theme.NeuralColors
+import com.oltvi.neural.ui.components.AvatarBadge
+import com.oltvi.neural.ui.components.XpProgressBar
+import kotlinx.coroutines.delay
+
+@Composable
+fun WorldScreen(
+    perfil: PerfilNeural = PerfilNeural(
+        id = "demo",
+        nombre = "Jugador",
+        clase = com.oltvi.neural.data.ClaseRPG.EXPLORADOR,
+        objetivo = com.oltvi.neural.data.ObjetivoVida.TRABAJO
+    ),
+    onNavigateToProfile: () -> Unit,
+    onNavigateToMisiones: () -> Unit,
+    onNavigateToGuia: () -> Unit
+) {
+    val nc = LocalNeuralColors.current
+    val zonas = remember { NeuralSeedData.zonasBarrio() }
+    var selectedZona by remember { mutableStateOf<ZonaBarrio?>(null) }
+    var hudVisible by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        delay(600)
+        hudVisible = true
+    }
+
+    val cameraState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(LatLng(-34.6037, -58.3816), 12.5f)
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        // --- MAP ---
+        GoogleMap(
+            modifier = Modifier.fillMaxSize(),
+            cameraPositionState = cameraState,
+            properties = MapProperties(
+                mapType = MapType.NORMAL,
+                isMyLocationEnabled = false
+            ),
+            uiSettings = MapUiSettings(
+                zoomControlsEnabled = false,
+                mapToolbarEnabled = false,
+                compassEnabled = false
+            )
+        ) {
+            zonas.forEach { zona ->
+                val zoneColor = Color(android.graphics.Color.parseColor(zona.colorHex))
+                Circle(
+                    center = zona.centro,
+                    radius = zona.radio,
+                    fillColor = zoneColor.copy(alpha = 0.12f),
+                    strokeColor = zoneColor.copy(alpha = 0.5f),
+                    strokeWidth = 2f,
+                    onClick = { selectedZona = zona }
+                )
+                if (zona.misionesActivas > 0) {
+                    Marker(
+                        state = rememberMarkerState(position = zona.centro),
+                        title = zona.nombre,
+                        snippet = "${zona.misionesActivas} misiones activas",
+                        onClick = { selectedZona = zona; false }
+                    )
+                }
+            }
+        }
+
+        // --- TOP HUD ---
+        AnimatedVisibility(
+            visible = hudVisible,
+            enter = fadeIn(tween(500)) + slideInVertically(tween(500)) { -it },
+            modifier = Modifier.align(Alignment.TopCenter)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(nc.deep.copy(0.85f))
+                        .border(1.dp, nc.glassBorder, RoundedCornerShape(16.dp))
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AvatarBadge(
+                        inicial = perfil.inicial,
+                        clase = perfil.clase,
+                        numeroNivel = perfil.numeroNivel,
+                        size = 48.dp,
+                        modifier = Modifier.clickable { onNavigateToProfile() }
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            perfil.nombre,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = nc.textPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        XpProgressBar(
+                            xpActual = perfil.xpActual,
+                            xpSiguiente = perfil.xpParaSiguienteNivel,
+                            progreso = perfil.progresoNivel,
+                            nivel = perfil.nivel,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+        }
+
+        // --- ZONA INFO PANEL ---
+        selectedZona?.let { zona ->
+            AnimatedVisibility(
+                visible = true,
+                enter = fadeIn() + slideInVertically { it / 2 },
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 24.dp)
+            ) {
+                ZonaInfoPanel(
+                    zona = zona,
+                    onVerMisiones = { selectedZona = null; onNavigateToMisiones() },
+                    onDismiss = { selectedZona = null }
+                )
+            }
+        }
+
+        // --- BOTTOM NAV ---
+        AnimatedVisibility(
+            visible = hudVisible && selectedZona == null,
+            enter = fadeIn(tween(500)) + slideInVertically(tween(500)) { it },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+        ) {
+            BottomHUD(
+                misionesActivas = zonas.sumOf { it.misionesActivas },
+                onMisiones = onNavigateToMisiones,
+                onGuia = onNavigateToGuia,
+                onPerfil = onNavigateToProfile
+            )
+        }
+    }
+}
+
+@Composable
+private fun ZonaInfoPanel(
+    zona: ZonaBarrio,
+    onVerMisiones: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val nc = LocalNeuralColors.current
+    val zoneColor = Color(android.graphics.Color.parseColor(zona.colorHex))
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(nc.deep.copy(0.95f))
+            .border(1.dp, zoneColor.copy(0.5f), RoundedCornerShape(20.dp))
+            .padding(20.dp)
+    ) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(zoneColor)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        zona.nombre,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = nc.textPrimary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Text(
+                    "✕",
+                    color = nc.textSecondary,
+                    fontSize = 18.sp,
+                    modifier = Modifier.clickable { onDismiss() }
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(zoneColor.copy(0.1f))
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Text("⚡", fontSize = 14.sp)
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "${zona.misionesActivas} misiones activas en este barrio",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = zoneColor
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(zoneColor.copy(0.15f))
+                    .border(1.dp, zoneColor.copy(0.5f), RoundedCornerShape(12.dp))
+                    .clickable { onVerMisiones() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "Ver misiones del barrio",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = zoneColor,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BottomHUD(
+    misionesActivas: Int,
+    onMisiones: () -> Unit,
+    onGuia: () -> Unit,
+    onPerfil: () -> Unit
+) {
+    val nc = LocalNeuralColors.current
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(nc.deep.copy(0.9f))
+            .border(1.dp, nc.glassBorder, RoundedCornerShape(20.dp))
+            .padding(horizontal = 8.dp, vertical = 12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            HudNavItem("Misiones", "⚡", misionesActivas.toString(), NeuralColors.xpGold, onMisiones)
+            // Central IA button
+            GuiaButton(onClick = onGuia)
+            HudNavItem("Perfil", "👤", "", NeuralColors.electric, onPerfil)
+        }
+    }
+}
+
+@Composable
+private fun HudNavItem(
+    label: String,
+    icon: String,
+    badge: String,
+    color: Color,
+    onClick: () -> Unit
+) {
+    val nc = LocalNeuralColors.current
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Box(contentAlignment = Alignment.TopEnd) {
+            Text(icon, fontSize = 24.sp)
+            if (badge.isNotEmpty() && badge != "0") {
+                Box(
+                    modifier = Modifier
+                        .size(16.dp)
+                        .clip(CircleShape)
+                        .background(color),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(badge, fontSize = 8.sp, color = nc.deep, fontWeight = FontWeight.Black)
+                }
+            }
+        }
+        Spacer(Modifier.height(2.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = nc.textSecondary)
+    }
+}
+
+@Composable
+private fun GuiaButton(onClick: () -> Unit) {
+    val nc = LocalNeuralColors.current
+    val infinite = rememberInfiniteTransition(label = "guia_pulse")
+    val pulse by infinite.animateFloat(
+        initialValue = 1f, targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(tween(1200, easing = LinearEasing), RepeatMode.Reverse),
+        label = "guia_scale"
+    )
+    Box(
+        modifier = Modifier
+            .size(64.dp)
+            .scale(pulse)
+            .clip(CircleShape)
+            .background(
+                androidx.compose.ui.graphics.Brush.radialGradient(
+                    listOf(nc.neural, nc.neural.copy(0.7f))
+                )
+            )
+            .border(2.dp, nc.electric.copy(0.6f), CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text("🧠", fontSize = 28.sp)
+    }
+}
