@@ -61,6 +61,7 @@ data class PerfilNeural(
     val nombre: String,
     val clase: ClaseRPG,
     val objetivo: ObjetivoVida,
+    val avatar: AvatarConfig = AvatarConfig(),
     val nivel: NivelNeural = NivelNeural.INICIADO,
     val xpActual: Int = 0,
     val reputacion: Int = 100,

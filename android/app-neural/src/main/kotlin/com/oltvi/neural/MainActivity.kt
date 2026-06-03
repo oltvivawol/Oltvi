@@ -53,10 +53,9 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxSize(),
                         startDestination = if (perfil != null) NeuralRoute.World.route
                         else NeuralRoute.Onboarding.route,
-                        onboardingComplete = { nuevoPerfil ->
-                            perfil = nuevoPerfil
-                        },
-                        perfil = perfil
+                        perfil = perfil,
+                        onboardingComplete = { nuevoPerfil -> perfil = nuevoPerfil },
+                        onPerfilUpdate = { actualizado -> perfil = actualizado }
                     )
                 }
             }

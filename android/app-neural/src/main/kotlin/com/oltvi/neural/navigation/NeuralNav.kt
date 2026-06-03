@@ -5,14 +5,20 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.oltvi.neural.data.AvatarConfig
 import com.oltvi.neural.data.ClaseRPG
 import com.oltvi.neural.data.ObjetivoVida
 import com.oltvi.neural.data.PerfilNeural
+import com.oltvi.neural.ui.avatar.AvatarCustomizerScreen
 import com.oltvi.neural.ui.guide.GuiaScreen
 import com.oltvi.neural.ui.missions.MisionesScreen
 import com.oltvi.neural.ui.onboarding.OnboardingScreen
@@ -25,6 +31,7 @@ sealed class NeuralRoute(val route: String) {
     object Profile : NeuralRoute("profile")
     object Misiones : NeuralRoute("misiones")
     object Guia : NeuralRoute("guia")
+    object AvatarCustomizer : NeuralRoute("avatar_customizer")
 }
 
 private val DEFAULT_PERFIL = PerfilNeural(
@@ -40,9 +47,10 @@ fun NeuralNavGraph(
     navController: NavHostController = rememberNavController(),
     startDestination: String = NeuralRoute.Onboarding.route,
     perfil: PerfilNeural? = null,
-    onboardingComplete: ((PerfilNeural) -> Unit)? = null
+    onboardingComplete: ((PerfilNeural) -> Unit)? = null,
+    onPerfilUpdate: ((PerfilNeural) -> Unit)? = null
 ) {
-    val perfilActual = perfil ?: DEFAULT_PERFIL
+    var perfilLocal by remember { mutableStateOf(perfil ?: DEFAULT_PERFIL) }
 
     NavHost(
         navController = navController,
@@ -72,40 +80,58 @@ fun NeuralNavGraph(
         composable(NeuralRoute.Onboarding.route) {
             OnboardingScreen(
                 onComplete = { nuevoPerfil ->
+                    perfilLocal = nuevoPerfil
                     onboardingComplete?.invoke(nuevoPerfil)
-                    navController.navigate(NeuralRoute.World.route) {
+                    navController.navigate(NeuralRoute.AvatarCustomizer.route) {
                         popUpTo(NeuralRoute.Onboarding.route) { inclusive = true }
                     }
                 }
             )
         }
 
+        composable(NeuralRoute.AvatarCustomizer.route) {
+            AvatarCustomizerScreen(
+                clase = perfilLocal.clase,
+                initialConfig = perfilLocal.avatar,
+                onConfirm = { avatarConfig ->
+                    perfilLocal = perfilLocal.copy(avatar = avatarConfig)
+                    onPerfilUpdate?.invoke(perfilLocal)
+                    navController.navigate(NeuralRoute.World.route) {
+                        popUpTo(NeuralRoute.AvatarCustomizer.route) { inclusive = true }
+                    }
+                },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
         composable(NeuralRoute.World.route) {
             WorldScreen(
-                perfil = perfilActual,
+                perfil = perfilLocal,
                 onNavigateToProfile = { navController.navigate(NeuralRoute.Profile.route) },
                 onNavigateToMisiones = { navController.navigate(NeuralRoute.Misiones.route) },
-                onNavigateToGuia = { navController.navigate(NeuralRoute.Guia.route) }
+                onNavigateToGuia = { navController.navigate(NeuralRoute.Guia.route) },
+                onNavigateToAvatar = { navController.navigate(NeuralRoute.AvatarCustomizer.route) }
             )
         }
 
         composable(NeuralRoute.Profile.route) {
             ProfileScreen(
-                perfil = perfilActual,
-                onBack = { navController.popBackStack() }
+                perfil = perfilLocal,
+                onBack = { navController.popBackStack() },
+                onCustomizeAvatar = { navController.navigate(NeuralRoute.AvatarCustomizer.route) }
             )
         }
 
         composable(NeuralRoute.Misiones.route) {
             MisionesScreen(
-                objetivo = perfilActual.objetivo,
+                objetivo = perfilLocal.objetivo,
                 onBack = { navController.popBackStack() }
             )
         }
 
         composable(NeuralRoute.Guia.route) {
             GuiaScreen(
-                perfil = perfilActual,
+                perfil = perfilLocal,
                 onBack = { navController.popBackStack() }
             )
         }

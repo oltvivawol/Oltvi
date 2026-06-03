@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.oltvi.neural.data.AvatarConfig
 import com.oltvi.neural.data.ClaseRPG
 import com.oltvi.neural.data.Logro
 import com.oltvi.neural.data.NivelNeural
@@ -40,7 +41,7 @@ import com.oltvi.neural.data.PerfilNeural
 import com.oltvi.neural.data.NeuralSeedData
 import com.oltvi.neural.theme.LocalNeuralColors
 import com.oltvi.neural.theme.NeuralColors
-import com.oltvi.neural.ui.components.AvatarBadge
+import com.oltvi.neural.ui.avatar.AvatarView
 import com.oltvi.neural.ui.components.NeuralCard
 import com.oltvi.neural.ui.components.StatChip
 import com.oltvi.neural.ui.components.XpProgressBar
@@ -57,7 +58,8 @@ fun ProfileScreen(
         misionesCompletadas = 3,
         logros = NeuralSeedData.logrosIniciales().mapIndexed { i, l -> l.copy(obtenido = i == 0) }
     ),
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onCustomizeAvatar: () -> Unit = {}
 ) {
     val nc = LocalNeuralColors.current
     val claseColor = Color(android.graphics.Color.parseColor(perfil.clase.colorHex))
@@ -118,12 +120,30 @@ fun ProfileScreen(
                     .padding(24.dp)
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                    AvatarBadge(
-                        inicial = perfil.inicial,
-                        clase = perfil.clase,
-                        numeroNivel = perfil.numeroNivel,
-                        size = 96.dp
-                    )
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.clickable { onCustomizeAvatar() }
+                    ) {
+                        AvatarView(
+                            config = perfil.avatar,
+                            clase = perfil.clase,
+                            size = 140.dp,
+                            animated = true,
+                            showGlow = true
+                        )
+                        // Edit badge
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(NeuralColors.electric)
+                                .border(2.dp, nc.deep, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("✏️", fontSize = 12.sp)
+                        }
+                    }
                     Spacer(Modifier.height(16.dp))
                     Text(
                         perfil.nombre,
