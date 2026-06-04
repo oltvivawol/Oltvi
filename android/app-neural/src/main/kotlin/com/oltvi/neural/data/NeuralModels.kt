@@ -102,6 +102,8 @@ data class Mision(
     val completada: Boolean = false,
     val progreso: Float = 0f,
     val accionRequerida: String? = null,
+    val zonaId: String? = null,
+    val respuestaUsuario: String? = null,
     val duracionEstimada: String = "~15 min"
 )
 
@@ -147,6 +149,13 @@ data class EtapaAprendizaje(
     val misionIds: List<String> = emptyList()
 )
 
+data class TriviaQ(
+    val pregunta: String,
+    val opciones: List<String>,
+    val correcta: Int,
+    val xp: Int = 10
+)
+
 // ---------------------------------------------------------------------------
 // Seed data
 // ---------------------------------------------------------------------------
@@ -164,7 +173,16 @@ object NeuralSeedData {
             Mision("n1", "Definí tu idea de negocio", "Describí en 3 oraciones qué vas a vender y a quién.", TipoMision.EMPRENDIMIENTO, 200, duracionEstimada = "~20 min"),
             Mision("n2", "Analizá la competencia local", "Visitá (o investigá) 3 negocios similares en tu barrio.", TipoMision.EXPLORACION, 150, duracionEstimada = "~1 hora"),
             Mision("n3", "Calculá cuánto necesitás para empezar", "Completá el módulo de finanzas básicas para emprendedores.", TipoMision.EDUCACION, 250, duracionEstimada = "~45 min"),
-            Mision("n4", "Creá tu primer perfil comercial", "Configurá el perfil de tu negocio en Capa Neural.", TipoMision.EMPRENDIMIENTO, 300, duracionEstimada = "~15 min")
+            Mision("n4", "Creá tu primer perfil comercial", "Configurá el perfil de tu negocio en Capa Neural.", TipoMision.EMPRENDIMIENTO, 300, duracionEstimada = "~15 min"),
+            Mision(
+                id = "crear_primer_modelo",
+                titulo = "Diseñá tu primera prenda con IA",
+                descripcion = "Visitá el Laboratorio VAWOL y usá el Estudio de Creación para generar tu primera prenda original.",
+                tipo = TipoMision.EMPRENDIMIENTO,
+                xpRecompensa = 500,
+                accionRequerida = "studio_crear_modelo",
+                duracionEstimada = "~5 min"
+            )
         )
         ObjetivoVida.EDUCACION -> listOf(
             Mision("e1", "Elegí una habilidad para desarrollar", "Seleccioná una rama del árbol de habilidades y completá el primer nivel.", TipoMision.EDUCACION, 150, duracionEstimada = "~20 min"),
@@ -189,11 +207,76 @@ object NeuralSeedData {
     )
 
     fun zonasBarrio(): List<ZonaBarrio> = listOf(
+        // ── Zona principal — usuario real ──────────────────────────────────────
+        ZonaBarrio(
+            id = "la_esperanza",
+            nombre = "Ingenio La Esperanza",
+            centro = com.google.android.gms.maps.model.LatLng(-24.2306, -64.8678),
+            radio = 5000.0,
+            activa = true,
+            misionesActivas = 8,
+            colorHex = "#27AE60",
+            descripcion = "San Pedro de Jujuy · El Puesto · La Manga · San Lucas"
+        ),
+        // ── Zonas Buenos Aires ─────────────────────────────────────────────────
         ZonaBarrio("palermo", "Palermo", com.google.android.gms.maps.model.LatLng(-34.5875, -58.4150), 1500.0, misionesActivas = 7, colorHex = "#7B2FBE"),
         ZonaBarrio("recoleta", "Recoleta", com.google.android.gms.maps.model.LatLng(-34.5885, -58.3960), 1200.0, misionesActivas = 5, colorHex = "#00D4FF"),
         ZonaBarrio("centro", "Centro / Microcentro", com.google.android.gms.maps.model.LatLng(-34.6037, -58.3816), 1800.0, misionesActivas = 12, colorHex = "#FFB800"),
         ZonaBarrio("boedo", "Boedo", com.google.android.gms.maps.model.LatLng(-34.6291, -58.4189), 900.0, misionesActivas = 3, colorHex = "#27AE60"),
         ZonaBarrio("belgrano", "Belgrano", com.google.android.gms.maps.model.LatLng(-34.5605, -58.4584), 1400.0, misionesActivas = 6, colorHex = "#FF6B35"),
         ZonaBarrio("flores", "Flores", com.google.android.gms.maps.model.LatLng(-34.6289, -58.4629), 1100.0, misionesActivas = 4, colorHex = "#E74C3C")
+    )
+
+    fun triviaLaEsperanza(): List<TriviaQ> = listOf(
+        TriviaQ(
+            pregunta = "¿En qué provincia argentina se encuentra Ingenio La Esperanza?",
+            opciones = listOf("Salta", "Jujuy", "Tucumán", "Catamarca"),
+            correcta = 1, xp = 10
+        ),
+        TriviaQ(
+            pregunta = "¿Cuál es el principal cultivo procesado en el Ingenio La Esperanza?",
+            opciones = listOf("Maíz", "Soja", "Caña de azúcar", "Tabaco"),
+            correcta = 2, xp = 10
+        ),
+        TriviaQ(
+            pregunta = "¿En qué región geográfica se ubica San Pedro de Jujuy?",
+            opciones = listOf("Puna jujeña", "Quebrada de Humahuaca", "Yungas / Valle", "Chaco jujeño"),
+            correcta = 2, xp = 10
+        ),
+        TriviaQ(
+            pregunta = "¿Qué río baña principalmente la zona de San Pedro de Jujuy?",
+            opciones = listOf("Río Bermejo", "Río San Francisco", "Río Pilcomayo", "Río Iguazú"),
+            correcta = 1, xp = 10
+        ),
+        TriviaQ(
+            pregunta = "¿Qué pueblo originario habitó históricamente la región jujeña?",
+            opciones = listOf("Guaraní", "Mapuche", "Omaguaca / Atacameño", "Tehuelche"),
+            correcta = 2, xp = 10
+        ),
+        TriviaQ(
+            pregunta = "¿Qué conmemoración histórica es famosa en Jujuy cada agosto?",
+            opciones = listOf("Batalla de Salta", "Éxodo Jujeño", "Declaración de independencia", "Festival de Cosquin"),
+            correcta = 1, xp = 15
+        ),
+        TriviaQ(
+            pregunta = "¿Cuál es el instrumento de cuerda más representativo de la música andina norteña?",
+            opciones = listOf("Bandoneón", "Charango", "Cajón peruano", "Marimba"),
+            correcta = 1, xp = 10
+        ),
+        TriviaQ(
+            pregunta = "¿Cuál es la capital de la provincia de Jujuy?",
+            opciones = listOf("San Pedro", "Humahuaca", "San Salvador de Jujuy", "Tilcara"),
+            correcta = 2, xp = 10
+        ),
+        TriviaQ(
+            pregunta = "¿Qué comida típica del NOA se prepara con choclo rallado envuelta en chala?",
+            opciones = listOf("Carbonada", "Humita en chala", "Empanada tucumana", "Locro"),
+            correcta = 1, xp = 15
+        ),
+        TriviaQ(
+            pregunta = "¿Qué sitio arqueológico de la Quebrada de Humahuaca es Patrimonio de la Humanidad (UNESCO)?",
+            opciones = listOf("Tilcara", "Pucará de Tilcara", "Quebrada de Humahuaca completa", "Cerro de los Siete Colores"),
+            correcta = 2, xp = 20
+        )
     )
 }
