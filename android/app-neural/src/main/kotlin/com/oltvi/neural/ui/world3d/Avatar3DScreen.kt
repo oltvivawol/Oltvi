@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import com.oltvi.neural.data.ClaseRPG
 import com.oltvi.neural.data.ObjetivoVida
 import com.oltvi.neural.data.PerfilNeural
+import com.oltvi.neural.theme.EstacionDetector
 import com.oltvi.neural.ui.world3d.minigames.CarreraEvento
 import com.oltvi.neural.ui.world3d.minigames.CarreraHUD
 import com.oltvi.neural.ui.world3d.minigames.CarreraState
@@ -38,6 +39,7 @@ private const val AVATAR_MODEL_PATH = "models/avatar_default.glb"
 
 // ---------------------------------------------------------------------------
 // Vista 3D en 3ra persona — SceneView/Filament, Compose-native
+// World environment: NOA / La Esperanza with seasonal directional lighting
 // ---------------------------------------------------------------------------
 
 @Composable
@@ -53,9 +55,17 @@ fun Avatar3DScreen(
     val recoleccion = remember { RecoleccionState() }
     var xpCarrera by remember { mutableIntStateOf(0) }
 
+    val estacion = remember { EstacionDetector.actual }
+
     val engine = rememberEngine()
     val modelLoader = rememberModelLoader(engine)
     val avatarNode = rememberNode(engine)
+
+    // Seasonal directional sun light
+    val sunLightNode = rememberSunLightNode(estacion)
+
+    // World geometry anchors (positioned nodes — geometry loaded from assets when available)
+    val envNodes = rememberEnvironmentNodes()
 
     LaunchedEffect(avatarNode) {
         try {
@@ -63,10 +73,11 @@ fun Avatar3DScreen(
             val modelNode = ModelNode(modelInstance = instance, scaleToUnits = 1.0f)
             avatarNode.addChildNode(modelNode)
         } catch (_: Exception) {
-            // Model not yet available — scene renders empty, controls still work
+            // Model not yet available — controls and lighting work regardless
         }
     }
 
+    // Third-person camera: behind and above avatar
     val cameraNode = rememberCameraNode(engine) {
         position = Position(x = 0f, y = 2.5f, z = 5f)
         lookAt(avatarNode)
@@ -81,7 +92,10 @@ fun Avatar3DScreen(
             engine = engine,
             modelLoader = modelLoader,
             cameraNode = cameraNode,
-            childNodes = listOf(avatarNode),
+            // avatarNode + sunLight + environment anchor nodes
+            childNodes = remember(avatarNode, sunLightNode, envNodes) {
+                listOf(avatarNode, sunLightNode) + envNodes
+            },
             onFrame = {
                 val now = System.nanoTime()
                 val dt = ((now - lastNanos[0]) / 1_000_000_000f).coerceIn(0.001f, 0.05f)
@@ -98,6 +112,7 @@ fun Avatar3DScreen(
                     y = toDegrees(controller.rotacionY.toDouble()).toFloat()
                 )
 
+                // Camera follows avatar (third-person offset)
                 cameraNode.position = Position(
                     x = controller.posX,
                     y = controller.alturaY + 2.5f,
