@@ -1,0 +1,1 @@
+export { generateModel } from "./generateModel";

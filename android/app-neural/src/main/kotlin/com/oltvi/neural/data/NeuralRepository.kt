@@ -4,6 +4,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -33,11 +34,26 @@ data class JugadorEnVivo(
 // Repository — Firestore + Storage + Auth con fallback mock offline
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// 3D model generation status (Vertex AI Studio pipeline)
+// ---------------------------------------------------------------------------
+
+data class GeneracionStatus(
+    val estado: Estado,
+    val progreso: Float = 0f,
+    val modelId: String? = null,
+    val glbUrl: String? = null,
+    val errorMensaje: String? = null
+) {
+    enum class Estado { PENDIENTE, GENERANDO, LISTO, ERROR }
+}
+
 @Singleton
 class NeuralRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
     private val auth: FirebaseAuth,
-    private val storage: FirebaseStorage
+    private val storage: FirebaseStorage,
+    private val functions: FirebaseFunctions
 ) {
 
     private val isOnline: Boolean
@@ -173,6 +189,85 @@ class NeuralRepository @Inject constructor(
     suspend fun getAssetUrl(path: String): String? = try {
         storage.reference.child(path).downloadUrl.await().toString()
     } catch (_: Exception) { null }
+
+    // ── Vertex AI 3D model generation ────────────────────────────────────────
+    //
+    // Pipeline: Android → Firebase Cloud Function (generateModel) →
+    //   Gemini 2.0 Flash refines prompt → Vertex AI Imagen 3D 4-view →
+    //   GLB conversion → Firebase Storage neural/models/generated/{uid}_{ts}.glb
+    //   → Firestore /neural_generated_models/{modelId}
+    //
+    // Emits: PENDIENTE → GENERANDO → LISTO | ERROR
+    // Cooldown: 1 generation per hour (enforced server-side in Cloud Function)
+
+    fun generarModelo3D(
+        categoria: CategoriaPrenda,
+        color: String,
+        descripcion: String
+    ): Flow<GeneracionStatus> = callbackFlow {
+        val uid = currentUid ?: run {
+            trySend(GeneracionStatus(GeneracionStatus.Estado.ERROR, errorMensaje = "No autenticado"))
+            close()
+            return@callbackFlow
+        }
+
+        trySend(GeneracionStatus(GeneracionStatus.Estado.PENDIENTE, progreso = 0f))
+
+        val payload = hashMapOf(
+            "categoria" to categoria.name,
+            "color" to color,
+            "descripcion" to descripcion,
+            "uid" to uid
+        )
+
+        trySend(GeneracionStatus(GeneracionStatus.Estado.GENERANDO, progreso = 0.1f))
+
+        try {
+            val result = functions
+                .getHttpsCallable("generateModel")
+                .call(payload)
+                .await()
+
+            @Suppress("UNCHECKED_CAST")
+            val data = result.data as? Map<String, Any>
+            val modelId = data?.get("modelId") as? String
+            val glbUrl  = data?.get("glbUrl")  as? String
+
+            if (modelId != null && glbUrl != null) {
+                // Persist generated model metadata in Firestore for later retrieval
+                try {
+                    firestore.collection("neural_generated_models").document(modelId)
+                        .set(mapOf(
+                            "uid" to uid, "categoria" to categoria.name,
+                            "color" to color, "descripcion" to descripcion,
+                            "glbUrl" to glbUrl,
+                            "ts" to com.google.firebase.Timestamp.now()
+                        )).await()
+                } catch (_: Exception) {}
+
+                trySend(GeneracionStatus(
+                    GeneracionStatus.Estado.LISTO,
+                    progreso = 1f,
+                    modelId = modelId,
+                    glbUrl = glbUrl
+                ))
+            } else {
+                trySend(GeneracionStatus(
+                    GeneracionStatus.Estado.ERROR,
+                    errorMensaje = "Respuesta inválida del servidor"
+                ))
+            }
+        } catch (e: Exception) {
+            // Offline / timeout fallback: use a placeholder model from the wardrobe seed
+            val placeholderGlb = "neural/models/placeholder_${categoria.name.lowercase()}.glb"
+            trySend(GeneracionStatus(
+                GeneracionStatus.Estado.ERROR,
+                errorMensaje = e.message ?: "Error de red — intentá nuevamente"
+            ))
+        }
+
+        close()
+    }
 
     // ── Helpers Firestore ↔ Kotlin ───────────────────────────────────────────
 

@@ -5,6 +5,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.firestoreSettings
 import com.google.firebase.firestore.memoryCacheSettings
 import com.google.firebase.firestore.persistentCacheSettings
+import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.storage.FirebaseStorage
 import com.oltvi.neural.BuildConfig
 import com.oltvi.neural.ai.AgenteGuia
@@ -48,9 +49,14 @@ object NeuralModule {
 
     @Provides
     @Singleton
+    fun provideFirebaseFunctions(): FirebaseFunctions = FirebaseFunctions.getInstance("us-central1")
+
+    @Provides
+    @Singleton
     fun provideNeuralRepository(
         firestore: FirebaseFirestore,
         auth: FirebaseAuth,
-        storage: FirebaseStorage
-    ): NeuralRepository = NeuralRepository(firestore, auth, storage)
+        storage: FirebaseStorage,
+        functions: FirebaseFunctions
+    ): NeuralRepository = NeuralRepository(firestore, auth, storage, functions)
 }

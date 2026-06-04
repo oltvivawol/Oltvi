@@ -77,6 +77,7 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.bundles.firebase)
     implementation(libs.firebase.storage)
+    implementation(libs.firebase.functions)
 
     // Motor 3D Compose-native (avatar 3ra persona)
     implementation(libs.sceneview)

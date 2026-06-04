@@ -31,7 +31,9 @@ data class PrendaRopa(
     val colorSecundarioHex: String? = null,
     val assetRef: String? = null,        // ruta al .glb o textura en Storage
     val marcaRef: String? = null,        // null = prenda original / futuro: id de marca licenciada
-    val disponible: Boolean = true
+    val disponible: Boolean = true,
+    val generadoIA: Boolean = false,     // true si fue creado por Vertex AI Studio
+    val promptOriginal: String? = null   // prompt que generó el modelo (para re-generación)
 ) {
     val precio: Int get() = (precioBase * rareza.multiplicadorPrecio).toInt()
 }
