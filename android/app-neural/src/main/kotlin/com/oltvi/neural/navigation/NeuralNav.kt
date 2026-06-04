@@ -19,10 +19,12 @@ import com.oltvi.neural.data.ObjetivoVida
 import com.oltvi.neural.data.PerfilNeural
 import com.oltvi.neural.ui.avatar.AvatarCustomizerScreen
 import com.oltvi.neural.ui.guide.GuiaScreen
+import com.oltvi.neural.ui.minigames.TriviaBarrioScreen
 import com.oltvi.neural.ui.missions.MisionesScreen
 import com.oltvi.neural.ui.onboarding.OnboardingScreen
 import com.oltvi.neural.ui.profile.ProfileScreen
 import com.oltvi.neural.ui.shop.TiendaScreen
+import com.oltvi.neural.ui.studio.EstudioCreacionScreen
 import com.oltvi.neural.ui.world.WorldScreen
 import com.oltvi.neural.ui.world3d.Avatar3DScreen
 
@@ -35,6 +37,8 @@ sealed class NeuralRoute(val route: String) {
     object Guia : NeuralRoute("guia")
     object AvatarCustomizer : NeuralRoute("avatar_customizer")
     object Tienda : NeuralRoute("tienda")
+    object TriviaBarrio : NeuralRoute("trivia_barrio")
+    object EstudioCreacion : NeuralRoute("estudio_creacion")
 }
 
 private val DEFAULT_PERFIL = PerfilNeural(
@@ -115,7 +119,9 @@ fun NeuralNavGraph(
                 onNavigateToGuia = { navController.navigate(NeuralRoute.Guia.route) },
                 onNavigateToAvatar = { navController.navigate(NeuralRoute.AvatarCustomizer.route) },
                 onNavigateToTienda = { navController.navigate(NeuralRoute.Tienda.route) },
-                onNavigateToWorld3D = { navController.navigate(NeuralRoute.World3D.route) }
+                onNavigateToWorld3D = { navController.navigate(NeuralRoute.World3D.route) },
+                onNavigateToTrivia = { navController.navigate(NeuralRoute.TriviaBarrio.route) },
+                onNavigateToEstudio = { navController.navigate(NeuralRoute.EstudioCreacion.route) }
             )
         }
 
@@ -156,6 +162,19 @@ fun NeuralNavGraph(
                     perfilLocal = actualizado
                     onPerfilUpdate?.invoke(actualizado)
                 }
+            )
+        }
+
+        composable(NeuralRoute.TriviaBarrio.route) {
+            TriviaBarrioScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(NeuralRoute.EstudioCreacion.route) {
+            EstudioCreacionScreen(
+                onBack = { navController.popBackStack() },
+                onModeloAgregado = { navController.popBackStack() }
             )
         }
     }

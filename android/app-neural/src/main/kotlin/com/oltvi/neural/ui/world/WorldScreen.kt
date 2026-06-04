@@ -79,7 +79,9 @@ fun WorldScreen(
     onNavigateToGuia: () -> Unit,
     onNavigateToAvatar: () -> Unit = {},
     onNavigateToTienda: () -> Unit = {},
-    onNavigateToWorld3D: () -> Unit = {}
+    onNavigateToWorld3D: () -> Unit = {},
+    onNavigateToTrivia: () -> Unit = {},
+    onNavigateToEstudio: () -> Unit = {}
 ) {
     val nc = LocalNeuralColors.current
     val zonas = remember { NeuralSeedData.zonasBarrio() }
@@ -159,6 +161,8 @@ fun WorldScreen(
                 ZonaInfoPanel(
                     zona = zona,
                     onVerMisiones = { selectedZona = null; onNavigateToMisiones() },
+                    onTrivia = if (zona.id == "la_esperanza") { { selectedZona = null; onNavigateToTrivia() } } else null,
+                    onEstudio = if (zona.id == "la_esperanza") { { selectedZona = null; onNavigateToEstudio() } } else null,
                     onDismiss = { selectedZona = null }
                 )
             }
@@ -303,6 +307,8 @@ private fun TopHud(perfil: PerfilNeural, onTapAvatar: () -> Unit) {
 private fun ZonaInfoPanel(
     zona: ZonaBarrio,
     onVerMisiones: () -> Unit,
+    onTrivia: (() -> Unit)? = null,
+    onEstudio: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     val nc = LocalNeuralColors.current
@@ -325,7 +331,12 @@ private fun ZonaInfoPanel(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(10.dp).clip(CircleShape).background(zoneColor))
                     Spacer(Modifier.width(8.dp))
-                    Text(zona.nombre, style = MaterialTheme.typography.titleLarge, color = nc.textPrimary, fontWeight = FontWeight.Bold)
+                    Column {
+                        Text(zona.nombre, style = MaterialTheme.typography.titleLarge, color = nc.textPrimary, fontWeight = FontWeight.Bold)
+                        if (zona.descripcion.isNotEmpty()) {
+                            Text(zona.descripcion, style = MaterialTheme.typography.labelSmall, color = nc.textSecondary)
+                        }
+                    }
                 }
                 Text("✕", color = nc.textSecondary, fontSize = 18.sp, modifier = Modifier.clickable { onDismiss() })
             }
@@ -340,20 +351,35 @@ private fun ZonaInfoPanel(
                 Spacer(Modifier.width(6.dp))
                 Text("${zona.misionesActivas} misiones activas en este barrio", style = MaterialTheme.typography.bodyMedium, color = zoneColor)
             }
-            Spacer(Modifier.height(16.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(zoneColor.copy(0.15f))
-                    .border(1.dp, zoneColor.copy(0.5f), RoundedCornerShape(12.dp))
-                    .clickable { onVerMisiones() },
-                contentAlignment = Alignment.Center
-            ) {
-                Text("Ver misiones del barrio", style = MaterialTheme.typography.titleSmall, color = zoneColor, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(12.dp))
+            // Primary: missions
+            ZonaPanelButton("Ver misiones del barrio", zoneColor, onVerMisiones)
+            // La Esperanza extras: Trivia + Laboratorio
+            if (onTrivia != null) {
+                Spacer(Modifier.height(8.dp))
+                ZonaPanelButton("📚 Trivia del Barrio", NeuralColors.xpGold, onTrivia)
+            }
+            if (onEstudio != null) {
+                Spacer(Modifier.height(8.dp))
+                ZonaPanelButton("🔬 Laboratorio VAWOL — Crear prenda con IA", NeuralColors.electric, onEstudio)
             }
         }
+    }
+}
+
+@Composable
+private fun ZonaPanelButton(label: String, color: Color, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(color.copy(0.15f))
+            .border(1.dp, color.copy(0.5f), RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, style = MaterialTheme.typography.titleSmall, color = color, fontWeight = FontWeight.Bold)
     }
 }
 
