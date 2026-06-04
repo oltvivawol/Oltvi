@@ -46,13 +46,15 @@ import kotlin.math.sqrt
 fun GameControlsOverlay(
     controller: CharacterController,
     accionActual: AccionPersonaje,
-    onBack: () -> Unit
+    carreraActiva: Boolean = false,
+    onBack: () -> Unit,
+    onToggleCarrera: () -> Unit = {}
 ) {
     val nc = LocalNeuralColors.current
 
     Box(modifier = Modifier.fillMaxSize()) {
 
-        // ── Botón volver ─────────────────────────────────────────────────────
+        // ── Back button ───────────────────────────────────────────────────
         Box(
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -68,7 +70,7 @@ fun GameControlsOverlay(
             Text("←", color = nc.textSecondary, fontSize = 18.sp)
         }
 
-        // ── Indicador de acción (debug) ────────────────────────────────────
+        // ── Action indicator ──────────────────────────────────────────────
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -81,11 +83,12 @@ fun GameControlsOverlay(
             Text(
                 accionActual.name,
                 style = MaterialTheme.typography.labelSmall,
-                color = nc.electric, fontWeight = FontWeight.Bold
+                color = nc.electric,
+                fontWeight = FontWeight.Bold
             )
         }
 
-        // ── Joystick (izquierda abajo) ────────────────────────────────────
+        // ── Virtual joystick — bottom left ───────────────────────────────
         Box(
             modifier = Modifier
                 .align(Alignment.BottomStart)
@@ -99,7 +102,7 @@ fun GameControlsOverlay(
             )
         }
 
-        // ── Botones de acción (derecha abajo) ─────────────────────────────
+        // ── Action buttons — bottom right ─────────────────────────────────
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -108,6 +111,12 @@ fun GameControlsOverlay(
             verticalArrangement = Arrangement.spacedBy(10.dp),
             horizontalAlignment = Alignment.End
         ) {
+            // Race toggle button
+            ActionButton(
+                icon = "🏁",
+                color = if (carreraActiva) Color(0xFFE74C3C) else NeuralColors.xpGold,
+                onClick = onToggleCarrera
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ActionButton("👊", NeuralColors.electric) { controller.onGolpear() }
                 ActionButton("🤜", NeuralColors.neural) { controller.onAgarrar() }
@@ -121,7 +130,7 @@ fun GameControlsOverlay(
 }
 
 // ---------------------------------------------------------------------------
-// Joystick virtual
+// Virtual joystick
 // ---------------------------------------------------------------------------
 
 @Composable
@@ -142,14 +151,8 @@ private fun VirtualJoystick(
             .border(1.dp, nc.glassBorder, CircleShape)
             .pointerInput(Unit) {
                 detectDragGestures(
-                    onDragEnd = {
-                        thumbX = 0f; thumbY = 0f
-                        onRelease()
-                    },
-                    onDragCancel = {
-                        thumbX = 0f; thumbY = 0f
-                        onRelease()
-                    }
+                    onDragEnd = { thumbX = 0f; thumbY = 0f; onRelease() },
+                    onDragCancel = { thumbX = 0f; thumbY = 0f; onRelease() }
                 ) { change, dragAmount ->
                     change.consume()
                     thumbX = (thumbX + dragAmount.x).coerceIn(-radius, radius)
@@ -165,7 +168,6 @@ private fun VirtualJoystick(
             },
         contentAlignment = Alignment.Center
     ) {
-        // Thumb
         Box(
             modifier = Modifier
                 .offset { IntOffset(thumbX.roundToInt(), thumbY.roundToInt()) }
@@ -178,7 +180,7 @@ private fun VirtualJoystick(
 }
 
 // ---------------------------------------------------------------------------
-// Botón de acción
+// Action button
 // ---------------------------------------------------------------------------
 
 @Composable
@@ -195,4 +197,3 @@ private fun ActionButton(icon: String, color: Color, onClick: () -> Unit) {
         Text(icon, fontSize = 20.sp)
     }
 }
-

@@ -3,14 +3,27 @@ package com.oltvi.neural.ui.world3d
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import com.oltvi.neural.data.ClaseRPG
 import com.oltvi.neural.data.ObjetivoVida
 import com.oltvi.neural.data.PerfilNeural
+import com.oltvi.neural.ui.world3d.minigames.CarreraEvento
+import com.oltvi.neural.ui.world3d.minigames.CarreraHUD
+import com.oltvi.neural.ui.world3d.minigames.CarreraState
+import com.oltvi.neural.ui.world3d.minigames.RecoleccionHUD
+import com.oltvi.neural.ui.world3d.minigames.RecoleccionState
 import io.github.sceneview.Scene
 import io.github.sceneview.math.Position
 import io.github.sceneview.math.Rotation
@@ -21,7 +34,6 @@ import io.github.sceneview.rememberModelLoader
 import io.github.sceneview.rememberNode
 import kotlin.math.toDegrees
 
-// Ruta en assets/ — reemplazar por el modelo rigged real cuando esté listo
 private const val AVATAR_MODEL_PATH = "models/avatar_default.glb"
 
 // ---------------------------------------------------------------------------
@@ -37,32 +49,29 @@ fun Avatar3DScreen(
     onBack: () -> Unit
 ) {
     val controller = remember { CharacterController() }
+    val carrera = remember { CarreraState() }
+    val recoleccion = remember { RecoleccionState() }
+    var xpCarrera by remember { mutableIntStateOf(0) }
 
     val engine = rememberEngine()
     val modelLoader = rememberModelLoader(engine)
-
-    // Nodo contenedor del avatar — siempre existe, el modelo es hijo opcional
     val avatarNode = rememberNode(engine)
 
-    // Cargar el modelo .glb si existe en assets
     LaunchedEffect(avatarNode) {
         try {
             val instance = modelLoader.createModelInstance(AVATAR_MODEL_PATH)
             val modelNode = ModelNode(modelInstance = instance, scaleToUnits = 1.0f)
             avatarNode.addChildNode(modelNode)
         } catch (_: Exception) {
-            // Modelo aún no disponible — la escena renderiza vacía
-            // Los controles y la cámara funcionan igual para probar la lógica
+            // Model not yet available — scene renders empty, controls still work
         }
     }
 
-    // Cámara 3ra persona: detrás y arriba del personaje
     val cameraNode = rememberCameraNode(engine) {
         position = Position(x = 0f, y = 2.5f, z = 5f)
         lookAt(avatarNode)
     }
 
-    // Buffer para delta de tiempo (no-state para no disparar recomposición)
     val lastNanos = remember { LongArray(1) { System.nanoTime() } }
 
     Box(modifier = Modifier.fillMaxSize().background(Color(0xFF080C18))) {
@@ -74,15 +83,12 @@ fun Avatar3DScreen(
             cameraNode = cameraNode,
             childNodes = listOf(avatarNode),
             onFrame = {
-                // Delta de tiempo
                 val now = System.nanoTime()
                 val dt = ((now - lastNanos[0]) / 1_000_000_000f).coerceIn(0.001f, 0.05f)
                 lastNanos[0] = now
 
-                // Actualizar físicas y estado del personaje
                 controller.update(dt)
 
-                // Mover el nodo del avatar según el controlador
                 avatarNode.position = Position(
                     x = controller.posX,
                     y = controller.alturaY,
@@ -92,21 +98,49 @@ fun Avatar3DScreen(
                     y = toDegrees(controller.rotacionY.toDouble()).toFloat()
                 )
 
-                // Cámara sigue al avatar desde atrás y arriba (offset fijo)
                 cameraNode.position = Position(
                     x = controller.posX,
                     y = controller.alturaY + 2.5f,
                     z = controller.posZ + 5f
                 )
                 cameraNode.lookAt(avatarNode)
+
+                // ── Minigame frame updates ────────────────────────────────
+                val eventoCarrera = carrera.update(dt, controller.posX, controller.posZ)
+                if (eventoCarrera == CarreraEvento.COMPLETADA) xpCarrera = 200
+
+                recoleccion.update(controller.posX, controller.posZ)
             }
         )
 
-        // Overlay de controles: joystick + botones de acción
+        // ── Race HUD ───────────────────────────────────────────────────────
+        CarreraHUD(
+            state = carrera,
+            xpGanado = xpCarrera,
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // ── Credits HUD — top right ────────────────────────────────────────
+        RecoleccionHUD(
+            state = recoleccion,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(end = 16.dp, top = 56.dp)
+        )
+
+        // ── Controls overlay ───────────────────────────────────────────────
         GameControlsOverlay(
             controller = controller,
             accionActual = controller.accion,
-            onBack = onBack
+            carreraActiva = carrera.activa,
+            onBack = onBack,
+            onToggleCarrera = {
+                if (carrera.activa) carrera.cancelar() else {
+                    xpCarrera = 0
+                    carrera.iniciar()
+                }
+            }
         )
     }
 }
