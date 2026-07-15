@@ -8,11 +8,11 @@ plugins {
 }
 
 android {
-    namespace = "com.oltvi.usuario"
+    namespace = "com.oltvi.neural"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.oltvi.usuario"
+        applicationId = "com.oltvi.neural"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
@@ -72,6 +72,13 @@ dependencies {
     implementation(libs.lottie.compose)
     implementation(libs.accompanist.permissions)
     implementation(libs.accompanist.systemuicontroller)
+    implementation(libs.datastore.preferences)
+    implementation(libs.gemini.generativeai)
     implementation(platform(libs.firebase.bom))
     implementation(libs.bundles.firebase)
+    implementation(libs.firebase.storage)
+    implementation(libs.firebase.functions)
+
+    // Motor 3D Compose-native (avatar 3ra persona)
+    implementation(libs.sceneview)
 }

@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [app-usuario, app-conductor, app-jefe]
+        app: [app-usuario, app-conductor, app-jefe, app-neural]
 
     steps:
       - name: Checkout
@@ -100,6 +100,7 @@ jobs:
             :app-usuario:assembleRelease \
             :app-conductor:assembleRelease \
             :app-jefe:assembleRelease \
+            :app-neural:assembleRelease \
             --no-daemon
         env:
           MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
@@ -124,5 +125,6 @@ jobs:
             - **OLTVI** (app-usuario) — pasajero
             - **OLTVI Conductor** (app-conductor) — driver
             - **OLTVI Mando** (app-jefe) — administrador
+            - **Capa Neural** (app-neural) — plataforma urbana gamificada
 
             Powered by Gemini 2.0 Flash + Google Maps 3D.

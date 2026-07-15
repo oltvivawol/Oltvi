@@ -34,6 +34,11 @@ object OltviColors {
     val surfaceMid = Color(0xFF1A2733)
     val glassOverlay = Color(0x14FFFFFF)
     val glassBorder = Color(0x33E67E22)
+
+    // Aliases used across app modules
+    val PrincipalDeep = Color(0xFF080D14)
+    val PrincipalDark = Color(0xFF0F1820)
+    val Surface = Color(0xFF1A2733)
 }
 
 /**
